@@ -488,7 +488,7 @@ struct QuickScan {
                   .margin({ left: 20, right: 20, top: 12 })
                   .backgroundColor('#F0F5FF')
                   .borderRadius(10)
-                  .border({ width: { left: 3 }, color: '#007AFF' })
+                  .border({ width: 0 })
 
                   // Divider
                   Row().width('100%').height(1).backgroundColor('#F2F2F7')
