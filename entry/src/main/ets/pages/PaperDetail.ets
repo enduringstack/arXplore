@@ -323,7 +323,7 @@ struct PaperDetail {
       // On-device: single prompt (limited capability)
       const prompt = `你是一位资深 AI 论文审稿人。请用中文对以下论文做结构化深度解读，严格按照以下格式输出，每个标题独占一行，内容紧跟标题下方：
 
-【作者与机构】【问题定义】【研究背景】【业界现有方案】【论文方案】【主要成果】【不足与展望】【端侧部署启示】
+【作者与机构】【问题定义】【研究背景】【业界现有方案】【论文方案】【主要成果】【不足与展望】【端侧芯片AI解决方案的启示】
 
 ${ctx}`;
       const question: localChatModel.QuestionInfo = { questionId: Date.now(), content: prompt };
@@ -341,7 +341,7 @@ ${ctx}`;
       const prompts: string[] = [
         base + '【作者与机构】简述第一作者和主要合作机构的背景\n【问题定义】论文要解决的核心问题\n【研究背景】该问题的学术和工业背景，为什么重要',
         base + '【业界现有方案】目前主流解决思路及其局限\n【论文方案】本文提出的方法/架构/算法核心思路\n【主要成果】关键实验结果、指标、与 SOTA 对比',
-        base + '【不足与展望】论文局限性及未来改进方向\n【端侧部署启示】对移动端/边缘端大模型部署的参考价值（模型压缩、推理优化、量化、蒸馏等角度）',
+        base + '【不足与展望】论文局限性及未来改进方向\n【端侧芯片AI解决方案的启示】对移动端/边缘端大模型部署的参考价值（模型压缩、推理优化、量化、蒸馏等角度）',
       ];
       try {
         const results = await Promise.all(prompts.map(p => CloudLLMService.chat(p)));
@@ -891,14 +891,14 @@ ${ctx}`;
   parseSections(): Array<[string, string, string, string]> {
     const sections: Array<[string, string, string, string]> = [];
     const iconMap: Record<string, [string, string]> = {
-      '作者与机构': ['🏛', '#5856D6'],
-      '问题定义': ['🎯', '#E17055'],
-      '研究背景': ['📚', '#0984E3'],
-      '业界现有方案': ['🔍', '#00B894'],
-      '论文方案': ['💡', '#F39C12'],
-      '主要成果': ['📊', '#E84393'],
-      '不足与展望': ['⚠', '#636E72'],
-      '端侧部署启示': ['📱', '#5856D6'],
+      '作者与机构': ['🏛', '#3C3C43'],
+      '问题定义': ['🎯', '#3C3C43'],
+      '研究背景': ['📚', '#3C3C43'],
+      '业界现有方案': ['🔍', '#3C3C43'],
+      '论文方案': ['💡', '#3C3C43'],
+      '主要成果': ['📊', '#3C3C43'],
+      '不足与展望': ['⚠', '#3C3C43'],
+      '端侧芯片AI解决方案的启示': ['📱', '#3C3C43'],
     };
     const regex = /【([^】]+)】/g;
     const text = this.summaryText;
@@ -1046,7 +1046,6 @@ ${ctx}`;
                   .padding(14)
                   .backgroundColor('#F8F9FA')
                   .borderRadius(10)
-                  .border({ width: { left: 3 }, color: item[3] })
                 })
 
                 // Fallback: raw text when sections can't be parsed
@@ -1526,7 +1525,6 @@ ${ctx}`;
             .padding(10)
             .backgroundColor('#F8F9FA')
             .borderRadius(8)
-            .border({ width: { left: 2 }, color: item[3] })
           })
 
           // Fallback raw text
