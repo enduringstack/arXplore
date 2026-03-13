@@ -622,9 +622,9 @@ struct QuickScan {
         Row() {
           // Skip button
           Column() {
-            Text('\u2717').fontSize(26).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+            Text('\u2717').fontSize(22).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
           }
-          .width(60).height(60).borderRadius(30)
+          .width(52).height(52).borderRadius(26)
           .backgroundColor('#FF3B30')
           .justifyContent(FlexAlign.Center)
           .shadow({ radius: 8, color: '#33FF3B30', offsetX: 0, offsetY: 4 })
@@ -632,13 +632,12 @@ struct QuickScan {
 
           // AI assess button
           Column() {
-            Text('✦').fontSize(18).fontColor('#6C5CE7')
+            Text('✦').fontSize(20).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
           }
-          .width(44).height(44).borderRadius(22)
-          .backgroundColor('#FFFFFF')
+          .width(52).height(52).borderRadius(26)
+          .backgroundColor('#6C5CE7')
           .justifyContent(FlexAlign.Center)
-          .border({ width: 1, color: '#6C5CE720', style: BorderStyle.Solid })
-          .shadow({ radius: 4, color: '#106C5CE7', offsetX: 0, offsetY: 2 })
+          .shadow({ radius: 8, color: '#336C5CE7', offsetX: 0, offsetY: 4 })
           .onClick(() => {
             if (this.currentIdx < this.papers.length) {
               this.generateAiTake(this.papers[this.currentIdx]);
@@ -647,19 +646,19 @@ struct QuickScan {
 
           // Detail button
           Column() {
-            Text('\u2197').fontSize(18).fontColor('#86909C')
+            Text('\u2197').fontSize(20).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
           }
-          .width(44).height(44).borderRadius(22)
-          .backgroundColor('#FFFFFF')
+          .width(52).height(52).borderRadius(26)
+          .backgroundColor('#86909C')
           .justifyContent(FlexAlign.Center)
-          .border({ width: 1, color: '#E5E5EA', style: BorderStyle.Solid })
+          .shadow({ radius: 8, color: '#3386909C', offsetX: 0, offsetY: 4 })
           .onClick(() => { this.openDetail(); })
 
           // Save button
           Column() {
-            Text('\u2605').fontSize(26).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+            Text('\u2605').fontSize(22).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
           }
-          .width(60).height(60).borderRadius(30)
+          .width(52).height(52).borderRadius(26)
           .backgroundColor('#007AFF')
           .justifyContent(FlexAlign.Center)
           .shadow({ radius: 8, color: '#33007AFF', offsetX: 0, offsetY: 4 })
