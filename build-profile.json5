@@ -1,0 +1,57 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Users/cannkit/.ohos/config/default_ReadingPapers_m7EIYTMQ7tTtMNcQMCqXm2NmUCvlKXnfCWCn7ku8oS4=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B090DF9BF2D25B2160E45310B9A9995BA01A8BFFC56C476FFFE9AB244AE05D7426A364E40895D41",
+          "profile": "/Users/cannkit/.ohos/config/default_ReadingPapers_m7EIYTMQ7tTtMNcQMCqXm2NmUCvlKXnfCWCn7ku8oS4=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/cannkit/.ohos/config/default_ReadingPapers_m7EIYTMQ7tTtMNcQMCqXm2NmUCvlKXnfCWCn7ku8oS4=.p12",
+          "storePassword": "0000001B7E41F8185300F2F35F5E4FBFEA9EC10680244905DE004A3855B06C97DAF943E646B9E37E6D1B4D"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "targetSdkVersion": "6.0.2(22)",
+        "compatibleSdkVersion": "6.0.2(22)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "nativeCompiler": "BiSheng",
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug",
+      },
+      {
+        "name": "release"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}
