@@ -684,7 +684,7 @@ ${ctx}`;
                 .fontSize(11)
                 .fontColor('#007AFF')
                 .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-                .borderRadius(4)
+                .borderRadius(10)
                 .border({ width: 0.5, color: '#007AFF66', style: BorderStyle.Solid })
             }, (cat: string) => cat)
 
@@ -891,14 +891,14 @@ ${ctx}`;
   parseSections(): Array<[string, string, string, string]> {
     const sections: Array<[string, string, string, string]> = [];
     const iconMap: Record<string, [string, string]> = {
-      '作者与机构': ['🏛', '#6C5CE7'],
+      '作者与机构': ['🏛', '#5856D6'],
       '问题定义': ['🎯', '#E17055'],
       '研究背景': ['📚', '#0984E3'],
       '业界现有方案': ['🔍', '#00B894'],
       '论文方案': ['💡', '#F39C12'],
       '主要成果': ['📊', '#E84393'],
       '不足与展望': ['⚠', '#636E72'],
-      '端侧部署启示': ['📱', '#6C5CE7'],
+      '端侧部署启示': ['📱', '#5856D6'],
     };
     const regex = /【([^】]+)】/g;
     const text = this.summaryText;
@@ -986,7 +986,7 @@ ${ctx}`;
           .height(2)
           .linearGradient({
             direction: GradientDirection.Right,
-            colors: [['#007AFF', 0], ['#6C5CE7', 0.5], ['#E84393', 1]]
+            colors: [['#007AFF', 0], ['#5856D6', 0.5], ['#E84393', 1]]
           })
 
         // Content area
@@ -1216,7 +1216,7 @@ ${ctx}`;
             .backgroundColor('#FFFFFF').borderRadius(14)
             .shadow({ radius: 20, color: '#33000000', offsetX: 0, offsetY: 4 })
           }
-          .width('100%').height('100%').justifyContent(FlexAlign.Center).backgroundColor('#00000033')
+          .width('100%').height('100%').justifyContent(FlexAlign.Center).backgroundColor('#00000040')
           .onClick(() => { this.showJump = false; })
         }
       }
@@ -1249,7 +1249,7 @@ ${ctx}`;
             .onClick(() => { this.showColors = !this.showColors; })
           Text('AI').fontSize(11).fontWeight(FontWeight.Medium).fontColor('#007AFF')
             .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-            .borderRadius(10).border({ width: 0.5, color: '#007AFF', style: BorderStyle.Solid })
+            .borderRadius(10).border({ width: 1, color: '#007AFF', style: BorderStyle.Solid })
             .margin({ left: 8 })
             .onClick(() => { this.summarizeSelectedText(); })
         }.alignItems(VerticalAlign.Center)
@@ -1478,7 +1478,7 @@ ${ctx}`;
         // Top gradient
         Row()
           .width('100%').height(6)
-          .linearGradient({ direction: GradientDirection.Right, colors: [['#007AFF', 0], ['#6C5CE7', 0.5], ['#E84393', 1]] })
+          .linearGradient({ direction: GradientDirection.Right, colors: [['#007AFF', 0], ['#5856D6', 0.5], ['#E84393', 1]] })
 
         Column({ space: 12 }) {
           // Header: branding + badge
@@ -1549,7 +1549,7 @@ ${ctx}`;
               Text('aX').fontSize(18).fontWeight(FontWeight.Bold).fontColor('#FFFFFF')
             }
             .width(36).height(36).borderRadius(8)
-            .linearGradient({ direction: GradientDirection.Right, colors: [['#007AFF', 0], ['#6C5CE7', 1]] })
+            .linearGradient({ direction: GradientDirection.Right, colors: [['#007AFF', 0], ['#5856D6', 1]] })
             .justifyContent(FlexAlign.Center)
           }
           .width('100%')

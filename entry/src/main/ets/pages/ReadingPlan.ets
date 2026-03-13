@@ -546,7 +546,7 @@ struct ReadingPlanPage {
       .width('100%').alignItems(VerticalAlign.Center)
     }
     .width('100%')
-    .padding(14)
+    .padding(16)
     .backgroundColor('#FFFFFF')
     .borderRadius(12)
     .shadow({ radius: 4, color: '#0D000000', offsetX: 0, offsetY: 2 })
@@ -564,7 +564,7 @@ struct ReadingPlanPage {
       Column() {
         // Handle
         Column()
-          .width(36).height(5).borderRadius(2.5).backgroundColor('#D1D1D6')
+          .width(36).height(4).borderRadius(2).backgroundColor('#D1D1D6')
           .margin({ top: 8, bottom: 12 })
 
         // Header
@@ -715,11 +715,11 @@ struct ReadingPlanPage {
       .width('100%')
       .height('70%')
       .backgroundColor('#FFFFFF')
-      .borderRadius({ topLeft: 14, topRight: 14 })
+      .borderRadius({ topLeft: 16, topRight: 16 })
       .shadow({ radius: 20, color: '#26000000', offsetX: 0, offsetY: -2 })
     }
     .width('100%').height('100%')
-    .backgroundColor('#00000033')
+    .backgroundColor('#00000040')
   }
 
   @Builder
@@ -727,7 +727,7 @@ struct ReadingPlanPage {
     Column() {
       Blank()
       Column() {
-        Column().width(36).height(5).borderRadius(2.5).backgroundColor('#D1D1D6').margin({ top: 8, bottom: 12 })
+        Column().width(36).height(4).borderRadius(2).backgroundColor('#D1D1D6').margin({ top: 8, bottom: 12 })
         Row() {
           Text('论文对比')
             .fontSize(18).fontWeight(FontWeight.Bold).fontColor('#000000')
@@ -758,11 +758,11 @@ struct ReadingPlanPage {
       }
       .width('100%').height('55%')
       .backgroundColor('#FFFFFF')
-      .borderRadius({ topLeft: 14, topRight: 14 })
+      .borderRadius({ topLeft: 16, topRight: 16 })
       .shadow({ radius: 20, color: '#26000000', offsetX: 0, offsetY: -2 })
     }
     .width('100%').height('100%')
-    .backgroundColor('#00000033')
+    .backgroundColor('#00000040')
     .onClick(() => { this.showCompare = false; this.compareSelection = []; })
   }
 }

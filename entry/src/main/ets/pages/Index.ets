@@ -501,7 +501,7 @@ struct Index {
               .fontSize(10)
               .fontColor('#007AFF')
               .backgroundColor('#EDF4FF')
-              .borderRadius(4)
+              .borderRadius(10)
               .padding({ left: 6, right: 6, top: 2, bottom: 2 })
           }, (cat: string) => cat)
         }
@@ -510,7 +510,7 @@ struct Index {
       .alignItems(VerticalAlign.Center)
     }
     .width('100%')
-    .padding(14)
+    .padding(16)
     .backgroundColor('#FFFFFF')
     .borderRadius(12)
     .border({ width: 1, color: '#E8EDF3', style: BorderStyle.Solid })
@@ -569,7 +569,7 @@ struct Index {
               .fontSize(10)
               .fontColor('#F53F3F')
               .backgroundColor('#FFF1F0')
-              .borderRadius(4)
+              .borderRadius(10)
               .padding({ left: 6, right: 6, top: 2, bottom: 2 })
           }, (cat: string) => cat)
         }
@@ -578,7 +578,7 @@ struct Index {
       .alignItems(VerticalAlign.Center)
     }
     .width('100%')
-    .padding(14)
+    .padding(16)
     .backgroundColor('#FFFFFF')
     .borderRadius(12)
     .border({ width: 1, color: '#FFE8E6', style: BorderStyle.Solid })
