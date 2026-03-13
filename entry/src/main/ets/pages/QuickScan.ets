@@ -57,12 +57,13 @@ struct QuickScan {
     const all: Paper[] = [];
     const ids = new Set<string>();
     const favSet = new Set<string>(this.favoriteIds);
-    const limit = Math.min(4, categories.length);
+    const catLimit = Math.min(6, categories.length);
+    const perCat = 50; // ~3 months coverage per category
 
-    for (let i = 0; i < limit; i++) {
+    for (let i = 0; i < catLimit; i++) {
       this.loadingCategory = categories[i].name;
       try {
-        const results = await ArxivService.searchPapers(categories[i].query, 0, 12, false);
+        const results = await ArxivService.searchPapers(categories[i].query, 0, perCat, false);
         for (const p of results) {
           if (!ids.has(p.id) && !favSet.has(p.id)) {
             ids.add(p.id);
@@ -72,12 +73,14 @@ struct QuickScan {
       } catch (_) {}
     }
 
-    // Init LinUCB recommendation engine with saved papers
-    RecommendService.init(getContext(this).filesDir, favPapers);
+    // Init LinUCB recommendation engine with saved papers + user category IDs for cold-start
+    const categoryIds: string[] = [];
+    for (const c of categories) categoryIds.push(c.id);
+    RecommendService.init(getContext(this).filesDir, favPapers, categoryIds);
 
     // Rank papers using LinUCB (combines learned preferences + exploration)
     const ranked = RecommendService.rank(all);
-    this.papers = ranked.slice(0, 30);
+    this.papers = ranked.slice(0, 50);
     this.isLoading = false;
     this.rlStats = RecommendService.getStats();
 

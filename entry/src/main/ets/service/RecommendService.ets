@@ -164,14 +164,87 @@ export class RecommendService {
   private static authorSet: string[] = [];
   private static affiliationSet: string[] = [];
 
-  static init(filesDir: string, savedPapers: Paper[]): void {
+  static init(filesDir: string, savedPapers: Paper[], userCategoryIds?: string[]): void {
     RecommendService.filesDir = filesDir;
-    RecommendService.buildVocab(savedPapers);
+    RecommendService.buildVocab(savedPapers, userCategoryIds);
     RecommendService.loadModel();
+    // Cold-start: warm-bias the model when no history
+    if (RecommendService.totalActions === 0 && savedPapers.length === 0) {
+      RecommendService.applyColdStartBias();
+    }
   }
 
-  // Build vocabulary from user's saved papers
-  private static buildVocab(papers: Paper[]): void {
+  // Cold-start bias: give positive prior to on-device LLM, AIGC, and user's categories
+  private static applyColdStartBias(): void {
+    // Simulate positive feedback for a hypothetical "ideal" paper:
+    // categories matching user interests, relevant keywords, recent, moderate length
+    const x = zeros(D);
+    // Activate first few category slots (user's subscribed categories)
+    for (let i = 0; i < Math.min(4, RecommendService.categoryVocab.length); i++) {
+      x[i] = 1;
+    }
+    // Activate keyword slots
+    for (let i = 0; i < Math.min(3, RecommendService.keywordVocab.length); i++) {
+      x[10 + i] = 1;
+    }
+    // Prefer recent papers
+    x[17] = 0.8;
+    // Moderate title/abstract length
+    x[18] = 0.5;
+    x[19] = 0.5;
+    // Apply as a mild positive signal (weight 0.5, applied 3 times for gentle bias)
+    for (let t = 0; t < 3; t++) {
+      RecommendService.A = matAdd(RecommendService.A, outerProduct(x));
+      RecommendService.b = vecAdd(RecommendService.b, vecScale(x, 0.5));
+    }
+  }
+
+  // Build vocabulary from user's saved papers (or cold-start defaults)
+  private static buildVocab(papers: Paper[], userCategoryIds?: string[]): void {
+    // Cold-start: use predefined interests when no saved papers
+    if (papers.length === 0) {
+      RecommendService.categoryVocab = [
+        'cs.CL', 'cs.LG', 'cs.AI', 'cs.CV', 'cs.AR',
+        'cs.DC', 'cs.SE', 'cs.RO', 'eess.SP', 'stat.ML'
+      ];
+      RecommendService.keywordVocab = [
+        'language', 'inference', 'deployment', 'device', 'efficient'
+      ];
+      // Also incorporate user's category tags if available
+      if (userCategoryIds && userCategoryIds.length > 0) {
+        const catMap: Record<string, string[]> = {
+          'edge_llm': ['cs.CL', 'cs.LG', 'cs.AI'],
+          'agent': ['cs.AI', 'cs.CL', 'cs.MA'],
+          'compression': ['cs.LG', 'cs.CV', 'cs.AI'],
+          '3dgs': ['cs.CV', 'cs.GR'],
+          'world_model': ['cs.CV', 'cs.AI', 'cs.LG'],
+          'deployment': ['cs.DC', 'cs.LG', 'cs.PF'],
+          'operator': ['cs.DC', 'cs.AR', 'cs.PF'],
+          'ai_dev': ['cs.SE', 'cs.CL', 'cs.AI'],
+          'vla': ['cs.RO', 'cs.CV', 'cs.AI'],
+          'ai_infra': ['cs.DC', 'cs.LG', 'cs.PF'],
+          'model_compute': ['cs.DC', 'cs.AR', 'cs.PF'],
+          'rl': ['cs.LG', 'cs.AI', 'stat.ML'],
+        };
+        const catSet: Set<string> = new Set();
+        for (const cid of userCategoryIds) {
+          const mapped = catMap[cid];
+          if (mapped) {
+            for (const c of mapped) catSet.add(c);
+          }
+        }
+        if (catSet.size > 0) {
+          const arr: string[] = [];
+          catSet.forEach(c => arr.push(c));
+          RecommendService.categoryVocab = arr.slice(0, 10);
+        }
+      }
+      RecommendService.authorSet = [];
+      RecommendService.affiliationSet = [];
+      RecommendService.saveVocab();
+      return;
+    }
+
     const catCount: Record<string, number> = {};
     const wordCount: Record<string, number> = {};
     const authors: Set<string> = new Set();
