@@ -283,7 +283,7 @@ struct QuickScan {
             .height(3)
             .linearGradient({
               direction: GradientDirection.Right,
-              colors: [['#007AFF', 0], ['#6C5CE7', 1]]
+              colors: [['#007AFF', 0], ['#34AAFF', 1]]
             })
             .borderRadius(1.5)
         }
@@ -377,24 +377,11 @@ struct QuickScan {
       Column() {
         // Card area
         Column() {
-          Blank().height(8)
+          Blank().height(12)
 
           Stack() {
-            // The card — now scrollable for full content
+            // The card — scrollable
             Column({ space: 0 }) {
-              // Top accent bar with gradient
-              Row()
-                .width('100%').height(4)
-                .borderRadius({ topLeft: 16, topRight: 16 })
-                .linearGradient({
-                  direction: GradientDirection.Right,
-                  colors: this.swipeIndicator() > 0
-                    ? [['#34C759', 0], ['#30D158', 1]]
-                    : this.swipeIndicator() < 0
-                      ? [['#FF3B30', 0], ['#FF6961', 1]]
-                      : [['#007AFF', 0], ['#5856D6', 1]]
-                })
-
               Scroll() {
                 Column({ space: 0 }) {
                   // Relevance badge + reading time
@@ -404,31 +391,31 @@ struct QuickScan {
                         Text('✦').fontSize(10).fontColor('#007AFF')
                         Text('与收藏相关').fontSize(11).fontColor('#007AFF').fontWeight(FontWeight.Medium)
                       }
-                      .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-                      .borderRadius(10)
-                      .backgroundColor('#007AFF15')
+                      .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                      .borderRadius(12)
+                      .backgroundColor('#007AFF10')
                     }
 
                     Blank()
 
                     Text(`${this.readTime(this.papers[this.currentIdx])} min read`)
-                      .fontSize(11).fontColor('#AEAEB2')
+                      .fontSize(11).fontColor('#C7C7CC')
                   }
                   .width('100%')
-                  .padding({ left: 20, right: 20, top: 14 })
+                  .padding({ left: 24, right: 24, top: 20 })
 
                   // Title
                   Text(this.papers[this.currentIdx].title)
-                    .fontSize(18).fontWeight(FontWeight.Bold).fontColor('#1D1D1F')
-                    .lineHeight(26).width('100%')
-                    .padding({ left: 20, right: 20, top: 10 })
+                    .fontSize(19).fontWeight(FontWeight.Bold).fontColor('#1D1D1F')
+                    .lineHeight(28).width('100%')
+                    .padding({ left: 24, right: 24, top: 12 })
 
-                  // Authors + affiliation
+                  // Authors
                   Text(this.papers[this.currentIdx].authors.slice(0, 4).map(a => a.name).join(', '))
                     .fontSize(13).fontColor('#86868B')
                     .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
                     .width('100%')
-                    .padding({ left: 20, right: 20, top: 6 })
+                    .padding({ left: 24, right: 24, top: 8 })
 
                   // Affiliations
                   if (this.papers[this.currentIdx].authors.length > 0 &&
@@ -437,7 +424,7 @@ struct QuickScan {
                       .fontSize(12).fontColor('#AEAEB2')
                       .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
                       .width('100%')
-                      .padding({ left: 20, right: 20, top: 2 })
+                      .padding({ left: 24, right: 24, top: 2 })
                   }
 
                   // Meta: categories + date
@@ -446,23 +433,23 @@ struct QuickScan {
                       ForEach(this.papers[this.currentIdx].categories.slice(0, 3), (cat: string) => {
                         Text(cat)
                           .fontSize(10).fontColor('#007AFF')
-                          .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-                          .borderRadius(10)
-                          .backgroundColor('#EDF4FF')
+                          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                          .borderRadius(12)
+                          .backgroundColor('#007AFF08')
                       }, (cat: string) => cat)
                     }
                     Blank()
                     Text(this.fmtDate(this.papers[this.currentIdx].published))
-                      .fontSize(11).fontColor('#AEAEB2')
+                      .fontSize(11).fontColor('#C7C7CC')
                   }
                   .width('100%')
-                  .padding({ left: 20, right: 20, top: 10 })
+                  .padding({ left: 24, right: 24, top: 14 })
 
                   // AI Quick Take
                   Column() {
                     Row({ space: 6 }) {
                       Text('✦').fontSize(12).fontColor('#007AFF')
-                      Text('AI 速评').fontSize(13).fontWeight(FontWeight.Bold).fontColor('#007AFF')
+                      Text('AI 速评').fontSize(13).fontWeight(FontWeight.Medium).fontColor('#007AFF')
                     }
 
                     if (this.aiLoading[this.papers[this.currentIdx].id]) {
@@ -470,64 +457,63 @@ struct QuickScan {
                         LoadingProgress().width(14).height(14).color('#007AFF')
                         Text('正在分析...').fontSize(13).fontColor('#AEAEB2')
                       }
-                      .margin({ top: 6 })
+                      .margin({ top: 8 })
                     } else if (this.aiTakes[this.papers[this.currentIdx].id]) {
                       Text(this.aiTakes[this.papers[this.currentIdx].id])
-                        .fontSize(13).fontColor('#4A4A5A').lineHeight(20)
-                        .margin({ top: 6 })
+                        .fontSize(13).fontColor('#48484A').lineHeight(20)
+                        .margin({ top: 8 })
                         .width('100%')
                     } else {
                       Text('点击生成 AI 速评')
-                        .fontSize(13).fontColor('#AEAEB2')
-                        .margin({ top: 6 })
+                        .fontSize(13).fontColor('#C7C7CC')
+                        .margin({ top: 8 })
                         .onClick(() => { this.generateAiTake(this.papers[this.currentIdx]); })
                     }
                   }
                   .width('100%')
-                  .padding(12)
-                  .margin({ left: 20, right: 20, top: 12 })
-                  .backgroundColor('#F0F5FF')
-                  .borderRadius(10)
-                  .border({ width: 0 })
+                  .padding(16)
+                  .margin({ left: 24, right: 24, top: 16 })
+                  .backgroundColor('#F2F2F7')
+                  .borderRadius(12)
 
                   // Divider
-                  Row().width('100%').height(1).backgroundColor('#F2F2F7')
-                    .margin({ top: 12, left: 20, right: 20 })
+                  Row().width('100%').height(0.5).backgroundColor('#E5E5EA')
+                    .margin({ top: 16, left: 24, right: 24 })
 
                   // Abstract — expandable
                   Text(this.papers[this.currentIdx].summary)
-                    .fontSize(14).fontColor('#4E5969')
+                    .fontSize(14).fontColor('#3C3C43')
                     .lineHeight(22)
                     .maxLines(this.expandAbstract ? undefined : 4)
                     .textOverflow(this.expandAbstract ? undefined : { overflow: TextOverflow.Ellipsis })
                     .width('100%')
-                    .padding({ left: 20, right: 20, top: 12 })
+                    .padding({ left: 24, right: 24, top: 16 })
 
                   if (!this.expandAbstract) {
                     Text('展开全文摘要 ▾')
                       .fontSize(13).fontColor('#007AFF').fontWeight(FontWeight.Medium)
-                      .padding({ left: 20, top: 6 })
+                      .padding({ left: 24, top: 8 })
                       .onClick(() => { this.expandAbstract = true; })
                   } else {
                     Text('收起 ▴')
                       .fontSize(13).fontColor('#007AFF').fontWeight(FontWeight.Medium)
-                      .padding({ left: 20, top: 6 })
+                      .padding({ left: 24, top: 8 })
                       .onClick(() => { this.expandAbstract = false; })
                   }
 
                   // Relevance keywords
                   if (this.getRelevanceTags(this.papers[this.currentIdx]).length > 0) {
                     Row({ space: 6 }) {
-                      Text('关联关键词:').fontSize(11).fontColor('#AEAEB2')
+                      Text('关联:').fontSize(11).fontColor('#C7C7CC')
                       ForEach(this.getRelevanceTags(this.papers[this.currentIdx]), (tag: string) => {
                         Text(tag)
                           .fontSize(11).fontColor('#007AFF')
-                          .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-                          .borderRadius(4)
-                          .backgroundColor('#007AFF15')
+                          .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+                          .borderRadius(8)
+                          .backgroundColor('#007AFF08')
                       }, (tag: string) => tag)
                     }
-                    .padding({ left: 20, right: 20, top: 10 })
+                    .padding({ left: 24, right: 24, top: 12 })
                     .width('100%')
                   }
 
@@ -538,7 +524,7 @@ struct QuickScan {
                     Text(' \u203A')
                       .fontSize(15).fontColor('#007AFF')
                   }
-                  .padding({ left: 20, top: 12, bottom: 20 })
+                  .padding({ left: 24, top: 16, bottom: 24 })
                   .onClick(() => { this.openDetail(); })
                 }
               }
@@ -547,8 +533,8 @@ struct QuickScan {
             }
             .width('100%')
             .backgroundColor('#FFFFFF')
-            .borderRadius(16)
-            .shadow({ radius: 20, color: '#1A000000', offsetX: 0, offsetY: 8 })
+            .borderRadius(20)
+            .shadow({ radius: 24, color: '#14000000', offsetX: 0, offsetY: 6 })
             .translate({ x: this.cardOffsetX })
             .opacity(this.cardOpacity)
             .rotate({ angle: this.cardRotate })
@@ -613,10 +599,10 @@ struct QuickScan {
           }
           .width('100%').layoutWeight(1)
 
-          Blank().height(4)
+          Blank().height(12)
         }
         .width('100%').layoutWeight(1)
-        .padding({ left: 16, right: 16 })
+        .padding({ left: 20, right: 20 })
 
         // Action buttons
         Row() {
@@ -635,9 +621,9 @@ struct QuickScan {
             Text('✦').fontSize(20).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
           }
           .width(52).height(52).borderRadius(26)
-          .backgroundColor('#6C5CE7')
+          .backgroundColor('#5856D6')
           .justifyContent(FlexAlign.Center)
-          .shadow({ radius: 8, color: '#336C5CE7', offsetX: 0, offsetY: 4 })
+          .shadow({ radius: 8, color: '#335856D6', offsetX: 0, offsetY: 4 })
           .onClick(() => {
             if (this.currentIdx < this.papers.length) {
               this.generateAiTake(this.papers[this.currentIdx]);
@@ -667,7 +653,7 @@ struct QuickScan {
         .width('100%')
         .justifyContent(FlexAlign.SpaceEvenly)
         .alignItems(VerticalAlign.Center)
-        .padding({ bottom: 4, top: 4 })
+        .padding({ bottom: 12, top: 12 })
 
         // Stats
         Row({ space: 16 }) {
