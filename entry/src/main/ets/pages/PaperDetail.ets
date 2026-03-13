@@ -84,9 +84,14 @@ struct PaperDetail {
   @State selectedText: string = '';
   @State relatedPapers: Paper[] = [];
   @State relatedLoading: boolean = false;
+  @State showChinese: boolean = false;
+  @State translatedTitle: string = '';
+  @State translatedSummary: string = '';
+  @State translating: boolean = false;
   @State showShareCard: boolean = false;
   @State shareCardGenerating: boolean = false;
   @State showSummaryShareCard: boolean = false;
+  @State showShareSheet: boolean = false;
   private toastTimer: number = 0;
 
   aboutToAppear(): void { this.initData(); }
@@ -128,7 +133,31 @@ struct PaperDetail {
     this.relatedLoading = false;
   }
 
+  async translatePaper(): Promise<void> {
+    if (!this.paper) return;
+    if (this.translatedTitle && this.translatedSummary) {
+      // 已翻译过，直接切换
+      this.showChinese = !this.showChinese;
+      return;
+    }
+    this.translating = true;
+    this.showChinese = true;
+    try {
+      // 并行翻译标题和摘要
+      const titlePromise: Promise<string> = CloudLLMService.translate(this.paper.title);
+      const summaryPromise: Promise<string> = CloudLLMService.translate(this.paper.summary);
+      const results: string[] = await Promise.all([titlePromise, summaryPromise]);
+      this.translatedTitle = results[0];
+      this.translatedSummary = results[1];
+    } catch (_) {
+      this.showToast('翻译失败，请检查网络');
+      this.showChinese = false;
+    }
+    this.translating = false;
+  }
+
   onBackPress(): boolean {
+    if (this.showShareSheet) { this.showShareSheet = false; return true; }
     if (this.showSummary) { this.showSummary = false; return true; }
     if (this.showColors) { this.showColors = false; return true; }
     if (this.showSearch) { this.closeSearch(); return true; }
@@ -173,6 +202,17 @@ struct PaperDetail {
     const board = pasteboard.getSystemPasteboard();
     board.setData(data);
     this.showToast('链接已复制');
+  }
+
+  copyBibTeX(): void {
+    if (!this.paper) return;
+    const arxivId = this.paper.id.replace('http://arxiv.org/abs/', '').replace('https://arxiv.org/abs/', '');
+    const firstAuthor = this.paper.authors.length > 0 ? this.paper.authors[0].name.split(' ').pop() || 'Unknown' : 'Unknown';
+    const year = this.paper.published ? this.paper.published.substring(0, 4) : '2024';
+    const bib = `@article{${firstAuthor.toLowerCase()}${year},\n  title={${this.paper.title}},\n  author={${this.paper.authors.map((a: Author) => a.name).join(' and ')}},\n  journal={arXiv preprint arXiv:${arxivId}},\n  year={${year}}\n}`;
+    const clipData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, bib);
+    pasteboard.getSystemPasteboard().setData(clipData);
+    this.showToast('BibTeX 已复制');
   }
 
   async sharePaperText(): Promise<void> {
@@ -597,6 +637,9 @@ ${ctx}`;
       if (this.showShareCard && this.paper) { this.ShareCardOverlay() }
       if (this.showSummaryShareCard && this.paper) { this.SummaryShareOverlay() }
 
+      // Share sheet
+      if (this.showShareSheet) { this.ShareSheet() }
+
       // Toast
       if (this.toastMsg) {
         Column() {
@@ -634,16 +677,24 @@ ${ctx}`;
       // 导航栏 — 纯白，与内容无缝衔接
       Row() {
         Row() {
-          Text('\u2039')
-            .fontSize(34)
-            .fontColor('#007AFF')
-            .height(44)
-            .textAlign(TextAlign.Center)
+          SymbolGlyph($r('sys.symbol.chevron_left'))
+            .fontSize(22)
+            .fontColor(['#007AFF'])
         }
         .width(56).height(44).justifyContent(FlexAlign.Center)
         .onClick(() => { router.back(); })
 
         Blank()
+
+        Text(this.showChinese ? '英' : '中')
+          .fontSize(13)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.showChinese ? '#FFFFFF' : '#007AFF')
+          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+          .borderRadius(14)
+          .backgroundColor(this.showChinese ? '#007AFF' : '#0A007AFF')
+          .margin({ right: 4 })
+          .onClick(() => { this.translatePaper(); })
 
         Text('AI')
           .fontSize(13)
@@ -651,22 +702,22 @@ ${ctx}`;
           .fontColor('#007AFF')
           .padding({ left: 10, right: 10, top: 5, bottom: 5 })
           .borderRadius(14)
-          .border({ width: 1, color: '#007AFF', style: BorderStyle.Solid })
-          .margin({ right: 16 })
+          .backgroundColor('#0A007AFF')
+          .margin({ right: 4 })
           .onClick(() => { this.generateSummary(); })
 
-        Text('↗')
-          .fontSize(20)
-          .fontColor('#007AFF')
-          .margin({ right: 16 })
-          .bindMenu([
-            { value: '分享卡片图', action: () => { this.shareCardImage(); } },
-            { value: '分享文字', action: () => { this.sharePaperText(); } }
-          ])
+        Row() {
+          SymbolGlyph($r('sys.symbol.share'))
+            .fontSize(20)
+            .fontColor(['#007AFF'])
+        }
+        .width(44).height(44)
+        .justifyContent(FlexAlign.Center)
+        .onClick(() => { this.showShareSheet = true; })
 
-        Text(this.isFavorite ? '★' : '☆')
+        Text(this.isFavorite ? '♥' : '♡')
           .fontSize(22)
-          .fontColor(this.isFavorite ? '#F53F3F' : '#C9CDD4')
+          .fontColor(this.isFavorite ? '#FF6B6B' : '#C7C7CC')
           .onClick(() => { this.toggleFav(); })
       }
       .width('100%')
@@ -698,7 +749,7 @@ ${ctx}`;
           .margin({ top: 4 })
 
           // 标题
-          Text(this.paper!.title)
+          Text(this.showChinese && this.translatedTitle ? this.translatedTitle : this.paper!.title)
             .fontSize(24)
             .fontWeight(FontWeight.Bold)
             .fontColor('#000000')
@@ -774,8 +825,17 @@ ${ctx}`;
             .width('100%')
             .margin({ bottom: 12 })
 
+          // 翻译加载状态
+          if (this.translating) {
+            Row() {
+              LoadingProgress().width(16).height(16).color('#007AFF')
+              Text('翻译中...').fontSize(13).fontColor('#86868B').margin({ left: 6 })
+            }
+            .margin({ top: 8 })
+          }
+
           // 正文
-          Text(this.paper!.summary)
+          Text(this.showChinese && this.translatedSummary ? this.translatedSummary : this.paper!.summary)
             .fontSize(16)
             .fontColor('#1D1D1F')
             .lineHeight(26)
@@ -865,7 +925,7 @@ ${ctx}`;
           Button(this.cached() ? '已缓存' : '仅下载')
             .type(ButtonType.Normal)
             .fontSize(14)
-            .fontColor(this.cached() ? '#34C759' : '#4E5969')
+            .fontColor(this.cached() ? '#34C759' : '#3C3C43')
             .backgroundColor('#F2F2F7')
             .borderRadius(10)
             .layoutWeight(1)
@@ -1143,8 +1203,9 @@ ${ctx}`;
       // Nav
       Row() {
         Row() {
-          Text('\u2039')
-            .fontSize(34).fontColor('#007AFF').height(44).textAlign(TextAlign.Center)
+          SymbolGlyph($r('sys.symbol.chevron_left'))
+            .fontSize(22)
+            .fontColor(['#007AFF'])
         }
         .width(56).height(44).justifyContent(FlexAlign.Center)
         .onClick(() => { this.closePdf(); })
@@ -1153,6 +1214,16 @@ ${ctx}`;
           .fontSize(13).fontColor('#1D1D1F')
           .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1).textAlign(TextAlign.Center)
+
+        Text(this.showChinese ? '英' : '中')
+          .fontSize(13)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.showChinese ? '#FFFFFF' : '#007AFF')
+          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+          .borderRadius(14)
+          .backgroundColor(this.showChinese ? '#007AFF' : '#0A007AFF')
+          .margin({ right: 4 })
+          .onClick(() => { this.translatePaper(); })
 
         Text('搜索').fontSize(15).fontColor('#007AFF')
           .padding({ left: 12, right: 4 })
@@ -1294,7 +1365,9 @@ ${ctx}`;
   HtmlReaderView() {
     Row() {
       Row() {
-        Text('\u2039').fontSize(34).fontColor('#007AFF').height(44).textAlign(TextAlign.Center)
+        SymbolGlyph($r('sys.symbol.chevron_left'))
+          .fontSize(22)
+          .fontColor(['#007AFF'])
       }
       .width(56).height(44).justifyContent(FlexAlign.Center)
       .onClick(() => { this.viewMode = MODE_ABSTRACT; })
@@ -1303,6 +1376,16 @@ ${ctx}`;
         .fontSize(13).fontColor('#1D1D1F')
         .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
         .layoutWeight(1).textAlign(TextAlign.Center)
+
+      Text(this.showChinese ? '英' : '中')
+        .fontSize(13)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.showChinese ? '#FFFFFF' : '#007AFF')
+        .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+        .borderRadius(14)
+        .backgroundColor(this.showChinese ? '#007AFF' : '#0A007AFF')
+        .margin({ right: 4 })
+        .onClick(() => { this.translatePaper(); })
 
       Text('AI')
         .fontSize(13).fontWeight(FontWeight.Medium).fontColor('#007AFF')
@@ -1415,7 +1498,7 @@ ${ctx}`;
 
           // Abstract excerpt
           Text(this.paper!.summary)
-            .fontSize(13).fontColor('#4E5969')
+            .fontSize(13).fontColor('#3C3C43')
             .lineHeight(21).maxLines(6)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .width('100%')
@@ -1428,7 +1511,7 @@ ${ctx}`;
               Text(this.paperId())
                 .fontSize(11).fontColor('#AEAEB2')
               Text('来自 arXplore · 论文速读')
-                .fontSize(10).fontColor('#C9CDD4')
+                .fontSize(10).fontColor('#C7C7CC')
             }
             Blank()
             // Stylized icon placeholder
@@ -1540,7 +1623,7 @@ ${ctx}`;
           Row() {
             Column({ space: 2 }) {
               Text(this.paperId()).fontSize(10).fontColor('#AEAEB2')
-              Text('来自 arXplore · AI 深度解读').fontSize(9).fontColor('#C9CDD4')
+              Text('来自 arXplore · AI 深度解读').fontSize(9).fontColor('#C7C7CC')
             }
             Blank()
             Column() {
@@ -1562,6 +1645,155 @@ ${ctx}`;
       .shadow({ radius: 16, color: '#26000000', offsetX: 0, offsetY: 4 })
       .position({ x: -9999 })
       .id('summaryShareComp')
+    }
+    .width('100%').height('100%')
+  }
+
+  // ================================================================
+  //  Share Sheet — 底部分享面板
+  // ================================================================
+  @Builder
+  ShareSheet() {
+    Stack({ alignContent: Alignment.Bottom }) {
+      // 蒙层
+      Column()
+        .width('100%').height('100%')
+        .backgroundColor('#00000040')
+        .onClick(() => { this.showShareSheet = false; })
+
+      // 底部面板
+      Column() {
+        // 拖拽把手
+        Row()
+          .width(36).height(4).borderRadius(2)
+          .backgroundColor('#D1D1D6')
+          .margin({ top: 8, bottom: 20 })
+
+        // 标题
+        Text('分享论文')
+          .fontSize(17)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#1D1D1F')
+          .margin({ bottom: 24 })
+
+        // 四宫格分享选项
+        Row() {
+          // 选项1: 精美卡片
+          Column() {
+            Column() {
+              Text('\uD83D\uDDBC')
+                .fontSize(26)
+            }
+            .width(56).height(56)
+            .borderRadius(14)
+            .backgroundColor('#0F007AFF')
+            .justifyContent(FlexAlign.Center)
+            .alignItems(HorizontalAlign.Center)
+
+            Text('精美卡片')
+              .fontSize(12)
+              .fontColor('#3C3C43')
+              .margin({ top: 8 })
+          }
+          .layoutWeight(1)
+          .alignItems(HorizontalAlign.Center)
+          .onClick(() => {
+            this.showShareSheet = false;
+            this.shareCardImage();
+          })
+
+          // 选项2: 分享文字
+          Column() {
+            Column() {
+              Text('\uD83D\uDCC4')
+                .fontSize(26)
+            }
+            .width(56).height(56)
+            .borderRadius(14)
+            .backgroundColor('#0F34C759')
+            .justifyContent(FlexAlign.Center)
+            .alignItems(HorizontalAlign.Center)
+
+            Text('分享文字')
+              .fontSize(12)
+              .fontColor('#3C3C43')
+              .margin({ top: 8 })
+          }
+          .layoutWeight(1)
+          .alignItems(HorizontalAlign.Center)
+          .onClick(() => {
+            this.showShareSheet = false;
+            this.sharePaperText();
+          })
+
+          // 选项3: 复制链接
+          Column() {
+            Column() {
+              Text('\uD83D\uDD17')
+                .fontSize(26)
+            }
+            .width(56).height(56)
+            .borderRadius(14)
+            .backgroundColor('#0FFF9500')
+            .justifyContent(FlexAlign.Center)
+            .alignItems(HorizontalAlign.Center)
+
+            Text('复制链接')
+              .fontSize(12)
+              .fontColor('#3C3C43')
+              .margin({ top: 8 })
+          }
+          .layoutWeight(1)
+          .alignItems(HorizontalAlign.Center)
+          .onClick(() => {
+            this.showShareSheet = false;
+            this.copyLink();
+          })
+
+          // 选项4: 复制引用
+          Column() {
+            Column() {
+              Text('\uD83D\uDCCE')
+                .fontSize(26)
+            }
+            .width(56).height(56)
+            .borderRadius(14)
+            .backgroundColor('#0F5856D6')
+            .justifyContent(FlexAlign.Center)
+            .alignItems(HorizontalAlign.Center)
+
+            Text('BibTeX')
+              .fontSize(12)
+              .fontColor('#3C3C43')
+              .margin({ top: 8 })
+          }
+          .layoutWeight(1)
+          .alignItems(HorizontalAlign.Center)
+          .onClick(() => {
+            this.showShareSheet = false;
+            this.copyBibTeX();
+          })
+        }
+        .width('100%')
+        .padding({ left: 24, right: 24 })
+
+        // 取消按钮
+        Text('取消')
+          .fontSize(17)
+          .fontColor('#007AFF')
+          .fontWeight(FontWeight.Medium)
+          .width('100%')
+          .height(52)
+          .textAlign(TextAlign.Center)
+          .backgroundColor('#F2F2F7')
+          .borderRadius(14)
+          .margin({ top: 24, left: 16, right: 16, bottom: 34 })
+          .onClick(() => { this.showShareSheet = false; })
+      }
+      .width('100%')
+      .backgroundColor('#FFFFFF')
+      .borderRadius({ topLeft: 20, topRight: 20 })
+      .alignItems(HorizontalAlign.Center)
     }
     .width('100%').height('100%')
   }

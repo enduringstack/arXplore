@@ -13,6 +13,7 @@ export interface Paper {
   pdfUrl: string;
   htmlUrl: string;
   categories: string[];
+  tldr?: string;  // 一句话TLDR摘要
 }
 
 export interface Category {

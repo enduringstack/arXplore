@@ -7,13 +7,12 @@ import { CloudLLMService } from '../service/CloudLLMService';
 import { PreferencesUtil } from '../common/PreferencesUtil';
 
 const STATUS_LABELS: string[] = ['未读', '在读', '已读'];
-const STATUS_COLORS: string[] = ['#86909C', '#007AFF', '#34C759'];
+const STATUS_COLORS: string[] = ['#86868B', '#007AFF', '#34C759'];
 const PRIORITY_LABELS: string[] = ['普通', '重要', '紧急'];
-const PRIORITY_COLORS: string[] = ['#C9CDD4', '#FF9500', '#FF3B30'];
+const PRIORITY_COLORS: string[] = ['#C7C7CC', '#FF9500', '#FF3B30'];
 
-@Entry
 @Component
-struct ReadingPlanPage {
+export struct ReadingPlanPage {
   @State papers: Paper[] = [];
   @State plans: Map<string, ReadingPlan> = new Map();
   @State progressMap: Map<string, number> = new Map();
@@ -31,11 +30,15 @@ struct ReadingPlanPage {
   @State compareLoading: boolean = false;
   @State toastMsg: string = '';
   @State readingStreak: number = 0;
+  @State streakDays: number = 0;
+  @State longestStreak: number = 0;
+  @State todayCompleted: boolean = false;
   private toastTimer: number = 0;
 
   aboutToAppear(): void {
     this.loadData();
     this.initLlm();
+    this.loadStreak();
   }
 
   async initLlm(): Promise<void> {
@@ -44,6 +47,68 @@ struct ReadingPlanPage {
 
   onPageShow(): void {
     this.loadData();
+    this.loadStreak();
+  }
+
+  private async loadStreak(): Promise<void> {
+    const lastReadDate = await PreferencesUtil.get('last_read_date', '') as string;
+    const streak = await PreferencesUtil.get('streak_days', 0) as number;
+    const longest = await PreferencesUtil.get('longest_streak', 0) as number;
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+
+    if (lastReadDate === todayStr) {
+      // 今天已读
+      this.streakDays = streak;
+      this.todayCompleted = true;
+    } else if (lastReadDate === yesterdayStr) {
+      // 昨天读了，streak继续
+      this.streakDays = streak;
+      this.todayCompleted = false;
+    } else {
+      // streak断了
+      this.streakDays = 0;
+      this.todayCompleted = false;
+    }
+    this.longestStreak = longest;
+  }
+
+  private async recordReading(): Promise<void> {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const lastReadDate = await PreferencesUtil.get('last_read_date', '') as string;
+
+    if (lastReadDate !== todayStr) {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+
+      if (lastReadDate === yesterdayStr) {
+        this.streakDays += 1;
+      } else {
+        this.streakDays = 1;
+      }
+
+      this.todayCompleted = true;
+      if (this.streakDays > this.longestStreak) {
+        this.longestStreak = this.streakDays;
+        await PreferencesUtil.put('longest_streak', this.longestStreak);
+      }
+      await PreferencesUtil.put('streak_days', this.streakDays);
+      await PreferencesUtil.put('last_read_date', todayStr);
+      this.checkMilestone();
+    }
+  }
+
+  private checkMilestone(): void {
+    const milestones: number[] = [7, 30, 100, 365];
+    if (milestones.includes(this.streakDays)) {
+      this.showToast(`恭喜！连续阅读 ${this.streakDays} 天！`);
+    }
   }
 
   async loadData(): Promise<void> {
@@ -72,6 +137,7 @@ struct ReadingPlanPage {
           plan.status = PLAN_DONE;
           if (!plan.completedAt) plan.completedAt = this.today();
           PreferencesUtil.savePlan(plan);
+          this.recordReading();
         }
       }
     }
@@ -151,6 +217,7 @@ struct ReadingPlanPage {
     }
     if (s === PLAN_DONE && !this.editPlan.completedAt) {
       this.editPlan.completedAt = this.today();
+      this.recordReading();
     }
     // Force re-render
     this.editPlan = this.clonePlan(this.editPlan!);
@@ -314,14 +381,9 @@ struct ReadingPlanPage {
       Column() {
         // Nav
         Row() {
-          Row() {
-            Text('\u2039').fontSize(34).fontColor('#007AFF').height(44).textAlign(TextAlign.Center)
-          }
-          .width(56).height(44).justifyContent(FlexAlign.Center)
-          .onClick(() => { router.back(); })
-
           Text('阅读计划')
-            .fontSize(20).fontWeight(FontWeight.Bold).fontColor('#1D2129')
+            .fontSize(20).fontWeight(FontWeight.Bold).fontColor('#1D1D1F')
+            .padding({ left: 16 })
 
           Blank()
 
@@ -341,24 +403,12 @@ struct ReadingPlanPage {
         .width('100%').height(44).alignItems(VerticalAlign.Center)
         .backgroundColor('#FFFFFF')
 
-        // Streak
-        if (this.readingStreak > 0) {
-          Row() {
-            Text(`${this.readingStreak}`)
-              .fontSize(20).fontWeight(FontWeight.Bold).fontColor('#FF9500')
-            Text(' 天连续阅读')
-              .fontSize(14).fontColor('#FF9500')
-            Blank()
-            Text(`${this.papers.length} 篇收藏`)
-              .fontSize(13).fontColor('#86909C')
-          }
-          .width('100%').padding({ left: 16, right: 16, top: 10, bottom: 4 })
-          .alignItems(VerticalAlign.Bottom)
-        }
+        // Streak Card
+        this.StreakCard()
 
         // Stats cards
         Row({ space: 10 }) {
-          this.StatCard('未读', this.stats()[0], '#86909C', '#FFFFFF')
+          this.StatCard('未读', this.stats()[0], '#86868B', '#FFFFFF')
           this.StatCard('在读', this.stats()[1], '#007AFF', '#E8F3FF')
           this.StatCard('已读', this.stats()[2], '#34C759', '#F0FFF4')
         }
@@ -396,11 +446,36 @@ struct ReadingPlanPage {
 
         // List
         if (this.filteredPapers().length === 0) {
-          Column() {
-            Text(this.papers.length === 0 ? '还没有收藏论文' : '该分类下暂无论文')
-              .fontSize(14).fontColor('#86909C')
+          if (this.papers.length === 0) {
+            // 阅读计划为空
+            Column() {
+              Text('📚')
+                .fontSize(64)
+              Text('还没有阅读计划')
+                .fontSize(18)
+                .fontWeight(FontWeight.Medium)
+                .fontColor('#1D1D1F')
+                .margin({ top: 16 })
+              Text('收藏论文后可以添加到阅读计划')
+                .fontSize(14)
+                .fontColor('#86868B')
+                .margin({ top: 8 })
+            }
+            .width('100%')
+            .padding({ top: 120 })
+            .alignItems(HorizontalAlign.Center)
+            .layoutWeight(1)
+          } else {
+            // 当前筛选分类下无论文
+            Column() {
+              Text('该分类下暂无论文')
+                .fontSize(14)
+                .fontColor('#86868B')
+            }
+            .width('100%')
+            .layoutWeight(1)
+            .justifyContent(FlexAlign.Center)
           }
-          .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
         } else {
           List({ space: 10 }) {
             ForEach(this.filteredPapers(), (paper: Paper) => {
@@ -438,9 +513,78 @@ struct ReadingPlanPage {
     .width('100%').height('100%')
   }
 
-  pageTransition() {
-    PageTransitionEnter({ duration: 250 }).slide(SlideEffect.Right)
-    PageTransitionExit({ duration: 200 }).opacity(0.8)
+  @Builder
+  StreakCard() {
+    Row() {
+      // 火焰图标 + 天数
+      Column() {
+        Text('🔥')
+          .fontSize(36)
+        Text(`${this.streakDays}`)
+          .fontSize(28)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#1D1D1F')
+          .margin({ top: 4 })
+        Text('天连续阅读')
+          .fontSize(12)
+          .fontColor('#86868B')
+          .margin({ top: 2 })
+      }
+      .alignItems(HorizontalAlign.Center)
+      .layoutWeight(1)
+
+      // 分割线
+      Column()
+        .width(0.5)
+        .height(50)
+        .backgroundColor('#E5E5EA')
+
+      // 最长记录
+      Column() {
+        Text('🏆')
+          .fontSize(20)
+        Text(`${this.longestStreak}`)
+          .fontSize(20)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#1D1D1F')
+          .margin({ top: 4 })
+        Text('最长纪录')
+          .fontSize(12)
+          .fontColor('#86868B')
+          .margin({ top: 2 })
+      }
+      .alignItems(HorizontalAlign.Center)
+      .layoutWeight(1)
+
+      // 分割线
+      Column()
+        .width(0.5)
+        .height(50)
+        .backgroundColor('#E5E5EA')
+
+      // 今日状态
+      Column() {
+        Text(this.todayCompleted ? '✅' : '📖')
+          .fontSize(20)
+        Text(this.todayCompleted ? '已完成' : '待阅读')
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.todayCompleted ? '#34C759' : '#FF9500')
+          .margin({ top: 4 })
+        Text('今日目标')
+          .fontSize(12)
+          .fontColor('#86868B')
+          .margin({ top: 2 })
+      }
+      .alignItems(HorizontalAlign.Center)
+      .layoutWeight(1)
+    }
+    .width('100%')
+    .padding({ top: 20, bottom: 20, left: 16, right: 16 })
+    .backgroundColor('#FFFFFF')
+    .borderRadius(16)
+    .shadow({ radius: 8, color: '#0A000000', offsetX: 0, offsetY: 2 })
+    .margin({ left: 16, right: 16, top: 12, bottom: 8 })
   }
 
   @Builder
@@ -449,7 +593,7 @@ struct ReadingPlanPage {
       Text(count.toString())
         .fontSize(28).fontWeight(FontWeight.Bold).fontColor(color)
       Text(label)
-        .fontSize(12).fontColor('#86909C')
+        .fontSize(12).fontColor('#86868B')
     }
     .layoutWeight(1)
     .padding({ top: 14, bottom: 14 })
@@ -462,7 +606,7 @@ struct ReadingPlanPage {
   TabChip(label: string, tab: number) {
     Text(label)
       .fontSize(13)
-      .fontColor(this.currentTab === tab ? '#FFFFFF' : '#4E5969')
+      .fontColor(this.currentTab === tab ? '#FFFFFF' : '#3C3C43')
       .backgroundColor(this.currentTab === tab ? '#007AFF' : '#FFFFFF')
       .borderRadius(16)
       .padding({ left: 14, right: 14, top: 6, bottom: 6 })
@@ -478,7 +622,7 @@ struct ReadingPlanPage {
           Circle()
             .width(20).height(20)
             .fill(this.compareSelection.includes(paper.id) ? '#007AFF' : '#00000000')
-            .stroke(this.compareSelection.includes(paper.id) ? '#007AFF' : '#C9CDD4')
+            .stroke(this.compareSelection.includes(paper.id) ? '#007AFF' : '#C7C7CC')
             .strokeWidth(2)
             .margin({ right: 10 })
         } else {
@@ -490,7 +634,7 @@ struct ReadingPlanPage {
         }
 
         Text(paper.title)
-          .fontSize(15).fontWeight(FontWeight.Medium).fontColor('#1D2129')
+          .fontSize(15).fontWeight(FontWeight.Medium).fontColor('#1D1D1F')
           .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
 
@@ -529,7 +673,7 @@ struct ReadingPlanPage {
 
         if (this.plans.get(paper.id)?.deadline) {
           Text(`  ·  截止 ${this.plans.get(paper.id)!.deadline}`)
-            .fontSize(11).fontColor('#86909C')
+            .fontSize(11).fontColor('#86868B')
         }
 
         if (this.plans.get(paper.id)?.notes) {
@@ -585,14 +729,14 @@ struct ReadingPlanPage {
             // Status section
             Column({ space: 10 }) {
               Text('阅读状态')
-                .fontSize(13).fontColor('#86909C').fontWeight(FontWeight.Medium).width('100%')
+                .fontSize(13).fontColor('#86868B').fontWeight(FontWeight.Medium).width('100%')
 
               Row({ space: 10 }) {
                 ForEach([0, 1, 2], (s: number) => {
                   Text(STATUS_LABELS[s])
                     .fontSize(14)
                     .fontColor(this.editPlan?.status === s ? '#FFFFFF' : STATUS_COLORS[s])
-                    .backgroundColor(this.editPlan?.status === s ? STATUS_COLORS[s] : '#F2F3F5')
+                    .backgroundColor(this.editPlan?.status === s ? STATUS_COLORS[s] : '#F2F2F7')
                     .borderRadius(20)
                     .padding({ left: 18, right: 18, top: 8, bottom: 8 })
                     .onClick(() => { this.setStatus(s); })
@@ -603,14 +747,14 @@ struct ReadingPlanPage {
             // Priority section
             Column({ space: 10 }) {
               Text('优先级')
-                .fontSize(13).fontColor('#86909C').fontWeight(FontWeight.Medium).width('100%')
+                .fontSize(13).fontColor('#86868B').fontWeight(FontWeight.Medium).width('100%')
 
               Row({ space: 10 }) {
                 ForEach([0, 1, 2], (p: number) => {
                   Text(PRIORITY_LABELS[p])
                     .fontSize(14)
                     .fontColor(this.editPlan?.priority === p ? '#FFFFFF' : PRIORITY_COLORS[p])
-                    .backgroundColor(this.editPlan?.priority === p ? PRIORITY_COLORS[p] : '#F2F3F5')
+                    .backgroundColor(this.editPlan?.priority === p ? PRIORITY_COLORS[p] : '#F2F2F7')
                     .borderRadius(20)
                     .padding({ left: 18, right: 18, top: 8, bottom: 8 })
                     .onClick(() => { this.setPriority(p); })
@@ -621,14 +765,14 @@ struct ReadingPlanPage {
             // Deadline
             Column({ space: 10 }) {
               Text('计划截止日期')
-                .fontSize(13).fontColor('#86909C').fontWeight(FontWeight.Medium).width('100%')
+                .fontSize(13).fontColor('#86868B').fontWeight(FontWeight.Medium).width('100%')
 
               Row({ space: 8 }) {
                 Text(this.editPlan?.deadline ? this.editPlan.deadline : '点击选择日期')
                   .fontSize(15)
-                  .fontColor(this.editPlan?.deadline ? '#1D2129' : '#C9CDD4')
+                  .fontColor(this.editPlan?.deadline ? '#1D1D1F' : '#C7C7CC')
                   .layoutWeight(1).height(40)
-                  .backgroundColor('#F2F3F5').borderRadius(10)
+                  .backgroundColor('#F2F2F7').borderRadius(10)
                   .padding({ left: 12, right: 12 })
                   .textAlign(TextAlign.Start)
                   .onClick(() => {
@@ -673,7 +817,7 @@ struct ReadingPlanPage {
             Column({ space: 10 }) {
               Row() {
                 Text('读后感 / 笔记')
-                  .fontSize(13).fontColor('#86909C').fontWeight(FontWeight.Medium)
+                  .fontSize(13).fontColor('#86868B').fontWeight(FontWeight.Medium)
 
                 Blank()
 
@@ -699,7 +843,7 @@ struct ReadingPlanPage {
                 .width('100%')
                 .height(180)
                 .fontSize(15)
-                .backgroundColor('#F2F3F5')
+                .backgroundColor('#F2F2F7')
                 .borderRadius(12)
                 .padding(12)
                 .onChange((v: string) => { this.editNotes = v; })

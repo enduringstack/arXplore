@@ -30,6 +30,16 @@ interface ReqBody {
 }
 
 export class CloudLLMService {
+  static async generateTLDR(title: string, abstract: string): Promise<string> {
+    const prompt = `请用一句简洁的中文概括这篇论文的核心贡献（不超过50个字）：\n\n标题：${title}\n\n摘要：${abstract.substring(0, 500)}`;
+    return await CloudLLMService.chat(prompt);
+  }
+
+  static async translate(text: string): Promise<string> {
+    const prompt = `请将以下学术论文的英文内容翻译为流畅的中文，保留专业术语的英文原文（用括号标注）：\n\n${text.substring(0, 2000)}`;
+    return await CloudLLMService.chat(prompt);
+  }
+
   static async chat(prompt: string): Promise<string> {
     const req = http.createHttp();
     try {

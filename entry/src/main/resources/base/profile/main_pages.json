@@ -1,9 +1,7 @@
 {
   "src": [
-    "pages/Index",
+    "pages/MainPage",
     "pages/PaperDetail",
-    "pages/CategoryManage",
-    "pages/ReadingPlan",
-    "pages/QuickScan"
+    "pages/CategoryManage"
   ]
 }

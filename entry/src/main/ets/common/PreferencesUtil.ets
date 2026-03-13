@@ -221,6 +221,17 @@ export class PreferencesUtil {
     await PreferencesUtil.prefs.flush();
   }
 
+  static async get(key: string, defaultValue: preferences.ValueType): Promise<preferences.ValueType> {
+    if (!PreferencesUtil.prefs) return defaultValue;
+    return await PreferencesUtil.prefs.get(key, defaultValue);
+  }
+
+  static async put(key: string, value: preferences.ValueType): Promise<void> {
+    if (!PreferencesUtil.prefs) return;
+    await PreferencesUtil.prefs.put(key, value);
+    await PreferencesUtil.prefs.flush();
+  }
+
   static async getReadingStreak(): Promise<number> {
     if (!PreferencesUtil.prefs) return 0;
     const now = new Date();

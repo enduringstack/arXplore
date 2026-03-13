@@ -10,9 +10,10 @@ export class C {
 
   // Text
   static readonly TEXT_PRIMARY = '#1D1D1F';
+  static readonly TEXT_SUB = '#3C3C43';
   static readonly TEXT_SECONDARY = '#86868B';
   static readonly TEXT_TERTIARY = '#AEAEB2';
-  static readonly TEXT_PLACEHOLDER = '#C9CDD4';
+  static readonly TEXT_PLACEHOLDER = '#C7C7CC';
 
   // Semantic
   static readonly DANGER = '#FF3B30';

@@ -6,9 +6,10 @@ import { PreferencesUtil } from '../common/PreferencesUtil';
 import { CloudLLMService } from '../service/CloudLLMService';
 import { RecommendService } from '../service/RecommendService';
 
-@Entry
 @Component
-struct QuickScan {
+export struct QuickScanPage {
+  // 回调：通知父组件切换到指定 Tab（由 MainPage 注入）
+  onSwitchTab?: (index: number) => void;
   @State papers: Paper[] = [];
   @State currentIdx: number = 0;
   @State isLoading: boolean = true;
@@ -26,6 +27,7 @@ struct QuickScan {
   @State aiLoading: Record<string, boolean> = {};
   @State llmInited: boolean = false;
   @State rlStats: string = '';
+  @State showOnboarding: boolean = false;
   // Saved paper keywords for relevance matching
   private savedKeywords: Set<string> = new Set();
   private animating: boolean = false;
@@ -40,6 +42,10 @@ struct QuickScan {
 
   async loadPapers(): Promise<void> {
     await PreferencesUtil.init(getContext(this));
+    const onboardingDone = await PreferencesUtil.get('quickscan_onboarding_done', false);
+    if (!onboardingDone) {
+      this.showOnboarding = true;
+    }
     this.favoriteIds = PreferencesUtil.getFavoriteIds();
     const categories = await PreferencesUtil.getCategories();
 
@@ -240,23 +246,13 @@ struct QuickScan {
     return Math.max(1, Math.ceil(paper.summary.split(' ').length / 40));
   }
 
-  pageTransition() {
-    PageTransitionEnter({ duration: 250 }).slide(SlideEffect.Right)
-    PageTransitionExit({ duration: 200 }).opacity(0.8)
-  }
-
   build() {
     Column() {
       // Header
       Row() {
-        Row() {
-          Text('\u2039').fontSize(34).fontColor('#007AFF').height(44).textAlign(TextAlign.Center)
-        }
-        .width(56).height(44).justifyContent(FlexAlign.Center)
-        .onClick(() => { router.back(); })
-
         Text('智能速览')
-          .fontSize(20).fontWeight(FontWeight.Bold).fontColor('#1D2129')
+          .fontSize(20).fontWeight(FontWeight.Bold).fontColor('#1D1D1F')
+          .padding({ left: 16 })
 
         Blank()
 
@@ -296,7 +292,7 @@ struct QuickScan {
       if (this.isLoading) {
         Column({ space: 12 }) {
           LoadingProgress().width(48).height(48).color('#007AFF')
-          Text('正在智能筛选论文...').fontSize(15).fontColor('#86909C')
+          Text('正在智能筛选论文...').fontSize(15).fontColor('#86868B')
           if (this.loadingCategory) {
             Text(this.loadingCategory).fontSize(13).fontColor('#AEAEB2')
           }
@@ -304,9 +300,13 @@ struct QuickScan {
         .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
       } else if (this.errorMsg) {
         Column({ space: 16 }) {
-          Text(this.errorMsg).fontSize(15).fontColor('#86909C')
-          Text('返回').fontSize(16).fontColor('#007AFF')
-            .onClick(() => { router.back(); })
+          Text(this.errorMsg).fontSize(15).fontColor('#86868B')
+          Text('返回探索').fontSize(16).fontColor('#007AFF')
+            .onClick(() => {
+              if (this.onSwitchTab) {
+                this.onSwitchTab(0); // 切换到探索 Tab
+              }
+            })
         }
         .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
       } else if (this.isDone()) {
@@ -332,11 +332,11 @@ struct QuickScan {
           .backgroundColor('#34C759')
 
         Text('速览完成')
-          .fontSize(24).fontWeight(FontWeight.Bold).fontColor('#1D2129')
+          .fontSize(24).fontWeight(FontWeight.Bold).fontColor('#1D1D1F')
           .margin({ top: 16 })
 
         Text('你已浏览了所有推荐论文')
-          .fontSize(14).fontColor('#86909C')
+          .fontSize(14).fontColor('#86868B')
       }
       .alignItems(HorizontalAlign.Center)
 
@@ -344,7 +344,7 @@ struct QuickScan {
         Column({ space: 6 }) {
           Text(this.savedCount.toString())
             .fontSize(36).fontWeight(FontWeight.Bold).fontColor('#007AFF')
-          Text('已收藏').fontSize(13).fontColor('#86909C')
+          Text('已收藏').fontSize(13).fontColor('#86868B')
         }.alignItems(HorizontalAlign.Center)
 
         Column().width(1).height(40).backgroundColor('#E5E5EA')
@@ -352,7 +352,7 @@ struct QuickScan {
         Column({ space: 6 }) {
           Text(this.skippedCount.toString())
             .fontSize(36).fontWeight(FontWeight.Bold).fontColor('#AEAEB2')
-          Text('已跳过').fontSize(13).fontColor('#86909C')
+          Text('已跳过').fontSize(13).fontColor('#86868B')
         }.alignItems(HorizontalAlign.Center)
       }
       .margin({ top: 32 })
@@ -364,11 +364,19 @@ struct QuickScan {
         .fontSize(16).fontWeight(FontWeight.Medium)
         .fontColor('#FFFFFF').backgroundColor('#007AFF')
         .borderRadius(24).width('80%').height(50)
-        .onClick(() => { router.back(); })
+        .onClick(() => {
+          if (this.onSwitchTab) {
+            this.onSwitchTab(0); // 切换到探索 Tab 查看收藏
+          }
+        })
 
-      Text('返回首页')
-        .fontSize(15).fontColor('#86909C').margin({ top: 12, bottom: 48 })
-        .onClick(() => { router.back(); })
+      Text('返回探索')
+        .fontSize(15).fontColor('#86868B').margin({ top: 12, bottom: 48 })
+        .onClick(() => {
+          if (this.onSwitchTab) {
+            this.onSwitchTab(0); // 切换到探索 Tab
+          }
+        })
     }
     .width('100%').layoutWeight(1)
     .alignItems(HorizontalAlign.Center)
@@ -447,6 +455,22 @@ struct QuickScan {
                   }
                   .width('100%')
                   .padding({ left: 24, right: 24, top: 14 })
+
+                  // TLDR一句话摘要
+                  if (this.papers[this.currentIdx].tldr && this.papers[this.currentIdx].tldr!.length > 0) {
+                    Text(this.papers[this.currentIdx].tldr!)
+                      .fontSize(13)
+                      .fontColor('#007AFF')
+                      .fontWeight(FontWeight.Medium)
+                      .maxLines(2)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis })
+                      .margin({ top: 12 })
+                      .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                      .backgroundColor('#F0F7FF')
+                      .borderRadius(8)
+                      .width('100%')
+                      .margin({ left: 24, right: 24, top: 12 })
+                  }
 
                   // AI Quick Take
                   Column() {
@@ -610,23 +634,33 @@ struct QuickScan {
         // Action buttons
         Row() {
           // Skip button
-          Column() {
-            Text('\u2717').fontSize(22).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+          Column({ space: 8 }) {
+            Column() {
+              Text('\u2717').fontSize(22).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+            }
+            .width(52).height(52).borderRadius(26)
+            .backgroundColor('#FF3B30')
+            .justifyContent(FlexAlign.Center)
+            .shadow({ radius: 8, color: '#33FF3B30', offsetX: 0, offsetY: 4 })
+
+            Text('跳过').fontSize(10).fontColor('#86868B')
           }
-          .width(52).height(52).borderRadius(26)
-          .backgroundColor('#FF3B30')
-          .justifyContent(FlexAlign.Center)
-          .shadow({ radius: 8, color: '#33FF3B30', offsetX: 0, offsetY: 4 })
+          .alignItems(HorizontalAlign.Center)
           .onClick(() => { this.skip(); })
 
           // AI assess button
-          Column() {
-            Text('✦').fontSize(20).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+          Column({ space: 8 }) {
+            Column() {
+              Text('✦').fontSize(20).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+            }
+            .width(52).height(52).borderRadius(26)
+            .backgroundColor('#5856D6')
+            .justifyContent(FlexAlign.Center)
+            .shadow({ radius: 8, color: '#335856D6', offsetX: 0, offsetY: 4 })
+
+            Text('AI').fontSize(10).fontColor('#86868B')
           }
-          .width(52).height(52).borderRadius(26)
-          .backgroundColor('#5856D6')
-          .justifyContent(FlexAlign.Center)
-          .shadow({ radius: 8, color: '#335856D6', offsetX: 0, offsetY: 4 })
+          .alignItems(HorizontalAlign.Center)
           .onClick(() => {
             if (this.currentIdx < this.papers.length) {
               this.generateAiTake(this.papers[this.currentIdx]);
@@ -634,23 +668,33 @@ struct QuickScan {
           })
 
           // Detail button
-          Column() {
-            Text('\u2197').fontSize(20).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+          Column({ space: 8 }) {
+            Column() {
+              Text('\u2197').fontSize(20).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+            }
+            .width(52).height(52).borderRadius(26)
+            .backgroundColor('#86868B')
+            .justifyContent(FlexAlign.Center)
+            .shadow({ radius: 8, color: '#3386868B', offsetX: 0, offsetY: 4 })
+
+            Text('详情').fontSize(10).fontColor('#86868B')
           }
-          .width(52).height(52).borderRadius(26)
-          .backgroundColor('#86909C')
-          .justifyContent(FlexAlign.Center)
-          .shadow({ radius: 8, color: '#3386909C', offsetX: 0, offsetY: 4 })
+          .alignItems(HorizontalAlign.Center)
           .onClick(() => { this.openDetail(); })
 
           // Save button
-          Column() {
-            Text('\u2605').fontSize(22).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+          Column({ space: 8 }) {
+            Column() {
+              Text('\u2605').fontSize(22).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+            }
+            .width(52).height(52).borderRadius(26)
+            .backgroundColor('#007AFF')
+            .justifyContent(FlexAlign.Center)
+            .shadow({ radius: 8, color: '#33007AFF', offsetX: 0, offsetY: 4 })
+
+            Text('收藏').fontSize(10).fontColor('#86868B')
           }
-          .width(52).height(52).borderRadius(26)
-          .backgroundColor('#007AFF')
-          .justifyContent(FlexAlign.Center)
-          .shadow({ radius: 8, color: '#33007AFF', offsetX: 0, offsetY: 4 })
+          .alignItems(HorizontalAlign.Center)
           .onClick(() => { this.save(); })
         }
         .width('100%')
@@ -675,6 +719,52 @@ struct QuickScan {
         .padding({ bottom: 32 })
       }
       .width('100%').height('100%')
+
+      // Onboarding overlay
+      if (this.showOnboarding) {
+        Column() {
+          Blank()
+
+          Column({ space: 36 }) {
+            // Swipe left — skip
+            Row({ space: 12 }) {
+              Text('\u2190').fontSize(40).fontColor('#FFFFFF')
+              Text('左滑跳过').fontSize(18).fontWeight(FontWeight.Medium).fontColor('#FFFFFF')
+            }
+
+            // Swipe right — save
+            Row({ space: 12 }) {
+              Text('右滑收藏').fontSize(18).fontWeight(FontWeight.Medium).fontColor('#FFFFFF')
+              Text('\u2192').fontSize(40).fontColor('#FFFFFF')
+            }
+
+            // Swipe up — detail
+            Column({ space: 8 }) {
+              Text('\u2191').fontSize(40).fontColor('#FFFFFF')
+              Text('上滑查看详情').fontSize(18).fontWeight(FontWeight.Medium).fontColor('#FFFFFF')
+            }
+            .alignItems(HorizontalAlign.Center)
+          }
+
+          Blank()
+
+          Text('开始探索')
+            .fontSize(16).fontWeight(FontWeight.Medium).fontColor('#FFFFFF')
+            .padding({ left: 32, right: 32, top: 12, bottom: 12 })
+            .borderRadius(25)
+            .border({ width: 1, color: '#FFFFFF', style: BorderStyle.Solid })
+            .onClick(async () => {
+              this.showOnboarding = false;
+              await PreferencesUtil.put('quickscan_onboarding_done', true);
+            })
+
+          Blank().height(64)
+        }
+        .width('100%').height('100%')
+        .backgroundColor('#BF000000')
+        .alignItems(HorizontalAlign.Center)
+        .justifyContent(FlexAlign.Center)
+      }
     }
     .width('100%').layoutWeight(1)
   }

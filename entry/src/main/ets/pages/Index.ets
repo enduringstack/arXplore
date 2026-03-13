@@ -1,14 +1,22 @@
 import { router } from '@kit.ArkUI';
-import { Paper, Category } from '../model/DataModels';
+import { Paper, Author, Category } from '../model/DataModels';
+import { RecommendService } from '../service/RecommendService';
 import { ArxivService } from '../service/ArxivService';
 import { PreferencesUtil } from '../common/PreferencesUtil';
+import { CloudLLMService } from '../service/CloudLLMService';
 
 const FAVORITES_INDEX = -1;
 const SEARCH_INDEX = -2;
 
-@Entry
+interface ScoredPaper {
+  paper: Paper;
+  score: number;
+}
+
 @Component
-struct Index {
+export struct IndexPage {
+  // 回调：通知父组件切换到指定 Tab（由 MainPage 注入）
+  onSwitchTab?: (index: number) => void;
   @State categories: Category[] = [];
   @State currentIndex: number = 0;
   @State papers: Paper[] = [];
@@ -21,6 +29,8 @@ struct Index {
   private currentPage: number = 0;
   private pageSize: number = 20;
   @State hasMore: boolean = true;
+  @State recommendedPapers: Paper[] = [];
+  @State readPaperIds: string[] = [];
 
   // Search
   @State showSearchBar: boolean = false;
@@ -40,6 +50,7 @@ struct Index {
     await PreferencesUtil.init(getContext(this));
     this.categories = await PreferencesUtil.getCategories();
     this.favoriteIds = PreferencesUtil.getFavoriteIds();
+    await this.loadReadHistory();
     await this.loadPapers(false);
   }
 
@@ -70,6 +81,7 @@ struct Index {
 
     if (this.currentIndex === FAVORITES_INDEX) {
       this.papers = PreferencesUtil.getFavoritePapers();
+      this.recommendedPapers = [];
       this.hasMore = false;
       this.isLoading = false;
       this.isRefreshing = false;
@@ -78,6 +90,7 @@ struct Index {
 
     if (this.currentIndex < 0 || this.currentIndex >= this.categories.length) {
       this.papers = [];
+      this.recommendedPapers = [];
       this.isLoading = false;
       this.isRefreshing = false;
       return;
@@ -98,10 +111,13 @@ struct Index {
       this.papers = result;
       if (result.length < this.pageSize) this.hasMore = false;
       this.cacheHint = this.formatCacheTime(category.query);
+      this.getRecommendations();
+      this.generateTLDRs();
     } catch (_e) {
       if (reqId !== this.loadRequestId) return;
       this.errorMsg = '网络请求失败，请下拉刷新重试';
       this.papers = [];
+      this.recommendedPapers = [];
     }
     this.isLoading = false;
     this.isRefreshing = false;
@@ -174,6 +190,38 @@ struct Index {
     }
   }
 
+  // 论文加载后，异步为前10篇没有TLDR的论文生成TLDR
+  private async generateTLDRs(): Promise<void> {
+    const papers = this.papers.filter((p: Paper) => !p.tldr).slice(0, 10);
+    for (const paper of papers) {
+      try {
+        const tldr = await CloudLLMService.generateTLDR(paper.title, paper.summary);
+        if (tldr && !tldr.startsWith('请求失败') && !tldr.startsWith('云端')) {
+          paper.tldr = tldr;
+          // 触发UI更新
+          this.papers = [...this.papers];
+        }
+      } catch (_) {
+        // 静默失败，TLDR是锦上添花
+      }
+    }
+  }
+
+  private getRecommendations(): void {
+    if (this.papers.length === 0) return;
+    try {
+      const scored: ScoredPaper[] = [];
+      for (const p of this.papers) {
+        const s: ScoredPaper = { paper: p, score: RecommendService.score(p) };
+        scored.push(s);
+      }
+      scored.sort((a: ScoredPaper, b: ScoredPaper) => b.score - a.score);
+      this.recommendedPapers = scored.slice(0, 3).map((s: ScoredPaper) => s.paper);
+    } catch (_) {
+      // 推荐失败不影响主功能
+    }
+  }
+
   toggleFavorite(paper: Paper): void {
     if (this.favoriteIds.includes(paper.id)) {
       PreferencesUtil.removeFavorite(paper.id);
@@ -187,7 +235,37 @@ struct Index {
     }
   }
 
+  private async loadReadHistory(): Promise<void> {
+    const ids = await PreferencesUtil.get('read_paper_ids', '[]') as string;
+    try {
+      const arr = JSON.parse(ids) as string[];
+      this.readPaperIds = arr;
+    } catch (_) {
+      this.readPaperIds = [];
+    }
+  }
+
+  private async markAsRead(paperId: string): Promise<void> {
+    if (!this.readPaperIds.includes(paperId)) {
+      let updated = [...this.readPaperIds, paperId];
+      // 最多缓存最近500个已读ID，避免存储膨胀
+      if (updated.length > 500) {
+        updated = updated.slice(updated.length - 500);
+      }
+      this.readPaperIds = updated;
+      await PreferencesUtil.put('read_paper_ids', JSON.stringify(this.readPaperIds));
+    }
+  }
+
+  private isPublishedToday(paper: Paper): boolean {
+    if (!paper.published) return false;
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    return paper.published.startsWith(todayStr);
+  }
+
   openPaperDetail(paper: Paper): void {
+    this.markAsRead(paper.id);
     AppStorage.setOrCreate('selectedPaperJson', JSON.stringify(paper));
     router.pushUrl({ url: 'pages/PaperDetail' });
   }
@@ -220,7 +298,7 @@ struct Index {
             .layoutWeight(1)
             .height(36)
             .fontSize(15)
-            .backgroundColor('#F2F3F5')
+            .backgroundColor('#F2F2F7')
             .borderRadius(10)
             .padding({ left: 12, right: 12 })
             .onChange((v: string) => { this.searchKeyword = v; })
@@ -241,23 +319,9 @@ struct Index {
           Text('arXplore')
             .fontSize(22)
             .fontWeight(FontWeight.Bold)
-            .fontColor('#1D2129')
+            .fontColor('#1D1D1F')
 
           Blank()
-
-          Text('速览')
-            .fontSize(14)
-            .fontColor('#FFFFFF')
-            .backgroundColor('#007AFF')
-            .borderRadius(14)
-            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-            .onClick(() => { router.pushUrl({ url: 'pages/QuickScan' }); })
-
-          Text('计划')
-            .fontSize(14)
-            .fontColor('#007AFF')
-            .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-            .onClick(() => { router.pushUrl({ url: 'pages/ReadingPlan' }); })
 
           Text('搜索')
             .fontSize(14)
@@ -285,8 +349,8 @@ struct Index {
         Row({ space: 8 }) {
           Text('收藏')
             .fontSize(13)
-            .fontColor(this.currentIndex === FAVORITES_INDEX ? '#FFFFFF' : '#4E5969')
-            .backgroundColor(this.currentIndex === FAVORITES_INDEX ? '#F53F3F' : '#F2F3F5')
+            .fontColor(this.currentIndex === FAVORITES_INDEX ? '#FFFFFF' : '#3C3C43')
+            .backgroundColor(this.currentIndex === FAVORITES_INDEX ? '#F53F3F' : '#F2F2F7')
             .borderRadius(16)
             .padding({ left: 14, right: 14, top: 6, bottom: 6 })
             .onClick(() => {
@@ -299,8 +363,8 @@ struct Index {
           ForEach(this.categories, (cat: Category, idx?: number) => {
             Text(cat.name)
               .fontSize(13)
-              .fontColor(this.currentIndex === (idx as number) ? '#FFFFFF' : '#4E5969')
-              .backgroundColor(this.currentIndex === (idx as number) ? '#007AFF' : '#F2F3F5')
+              .fontColor(this.currentIndex === (idx as number) ? '#FFFFFF' : '#3C3C43')
+              .backgroundColor(this.currentIndex === (idx as number) ? '#007AFF' : '#F2F2F7')
               .borderRadius(16)
               .padding({ left: 14, right: 14, top: 6, bottom: 6 })
               .onClick(() => {
@@ -329,7 +393,7 @@ struct Index {
             .color('#007AFF')
           Text('正在加载...')
             .fontSize(14)
-            .fontColor('#86909C')
+            .fontColor('#86868B')
             .margin({ top: 12 })
         }
         .width('100%')
@@ -339,7 +403,7 @@ struct Index {
         Column() {
           Text(this.errorMsg)
             .fontSize(14)
-            .fontColor('#86909C')
+            .fontColor('#86868B')
           Text('下拉刷新重试')
             .fontSize(13)
             .fontColor('#007AFF')
@@ -352,15 +416,68 @@ struct Index {
         .layoutWeight(1)
         .justifyContent(FlexAlign.Center)
       } else if (this.papers.length === 0) {
-        Column() {
-          Text(this.currentIndex === FAVORITES_INDEX ? '还没有收藏的论文' :
-               this.currentIndex === SEARCH_INDEX ? '未找到相关论文' : '暂无论文')
-            .fontSize(14)
-            .fontColor('#86909C')
+        if (this.currentIndex === FAVORITES_INDEX) {
+          // 收藏列表为空
+          Column() {
+            Text('⭐')
+              .fontSize(64)
+            Text('还没有收藏的论文')
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#1D1D1F')
+              .margin({ top: 16 })
+            Text('在速览中右滑收藏感兴趣的论文')
+              .fontSize(14)
+              .fontColor('#86868B')
+              .margin({ top: 8 })
+            Button('开始速览')
+              .fontSize(15)
+              .fontColor('#007AFF')
+              .backgroundColor('#F2F2F7')
+              .borderRadius(20)
+              .padding({ left: 24, right: 24, top: 10, bottom: 10 })
+              .margin({ top: 20 })
+              .onClick(() => {
+                if (this.onSwitchTab) {
+                  this.onSwitchTab(1); // 切换到速览 Tab
+                }
+              })
+          }
+          .width('100%')
+          .padding({ top: 120 })
+          .alignItems(HorizontalAlign.Center)
+          .layoutWeight(1)
+        } else if (this.currentIndex === SEARCH_INDEX) {
+          // 搜索无结果
+          Column() {
+            Text('未找到相关论文')
+              .fontSize(14)
+              .fontColor('#86868B')
+          }
+          .width('100%')
+          .layoutWeight(1)
+          .justifyContent(FlexAlign.Center)
+        } else {
+          // 首页论文列表为空
+          Column() {
+            Text('🔭')
+              .fontSize(64)
+            Text('暂无论文')
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#1D1D1F')
+              .margin({ top: 16 })
+            Text('选择感兴趣的分类\n开始探索学术前沿')
+              .fontSize(14)
+              .fontColor('#86868B')
+              .textAlign(TextAlign.Center)
+              .margin({ top: 8 })
+          }
+          .width('100%')
+          .padding({ top: 120 })
+          .alignItems(HorizontalAlign.Center)
+          .layoutWeight(1)
         }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
       } else {
         Refresh({ refreshing: $$this.isRefreshing }) {
           List({ space: 10 }) {
@@ -369,7 +486,7 @@ struct Index {
               ListItem() {
                 Text(`找到 ${this.searchResultCount}${this.hasMore ? '+' : ''} 篇相关论文`)
                   .fontSize(12)
-                  .fontColor('#86909C')
+                  .fontColor('#86868B')
                   .width('100%')
                   .textAlign(TextAlign.Center)
                   .padding({ top: 6, bottom: 0 })
@@ -381,10 +498,17 @@ struct Index {
               ListItem() {
                 Text(this.cacheHint)
                   .fontSize(11)
-                  .fontColor('#C9CDD4')
+                  .fontColor('#C7C7CC')
                   .width('100%')
                   .textAlign(TextAlign.Center)
                   .padding({ top: 4, bottom: 0 })
+              }
+            }
+
+            // 今日推荐（仅在论文分类tab显示，不在收藏和搜索中显示）
+            if (this.recommendedPapers.length > 0 && this.currentIndex >= 0 && this.currentIndex !== SEARCH_INDEX) {
+              ListItem() {
+                this.DailyRecommendation()
               }
             }
 
@@ -402,8 +526,8 @@ struct Index {
             if (this.hasMore) {
               ListItem() {
                 Row() {
-                  LoadingProgress().width(24).height(24).color('#C9CDD4')
-                  Text('加载更多...').fontSize(13).fontColor('#C9CDD4').margin({ left: 8 })
+                  LoadingProgress().width(24).height(24).color('#C7C7CC')
+                  Text('加载更多...').fontSize(13).fontColor('#C7C7CC').margin({ left: 8 })
                 }
                 .width('100%')
                 .height(48)
@@ -440,20 +564,101 @@ struct Index {
   }
 
   @Builder
+  DailyRecommendation() {
+    Column() {
+      // 标题行
+      Row() {
+        Text('✨')
+          .fontSize(18)
+        Text('今日推荐')
+          .fontSize(17)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#1D1D1F')
+          .margin({ left: 6 })
+        Blank()
+        Text('基于你的偏好')
+          .fontSize(12)
+          .fontColor('#86868B')
+      }
+      .width('100%')
+      .padding({ left: 20, right: 20, top: 16, bottom: 12 })
+
+      // 横滑卡片
+      Scroll() {
+        Row({ space: 12 }) {
+          ForEach(this.recommendedPapers, (paper: Paper) => {
+            Column() {
+              // 分类标签
+              Text(paper.categories[0] || '')
+                .fontSize(11)
+                .fontColor('#007AFF')
+                .backgroundColor('#F0F7FF')
+                .borderRadius(6)
+                .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+
+              // 标题
+              Text(paper.title)
+                .fontSize(15)
+                .fontWeight(FontWeight.Medium)
+                .fontColor('#1D1D1F')
+                .maxLines(3)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .margin({ top: 10 })
+
+              // TLDR（如果有）
+              if (paper.tldr) {
+                Text(paper.tldr)
+                  .fontSize(12)
+                  .fontColor('#007AFF')
+                  .maxLines(2)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  .margin({ top: 8 })
+              }
+
+              Blank()
+
+              // 作者
+              Text(paper.authors.slice(0, 2).map((a: Author) => a.name).join(', '))
+                .fontSize(11)
+                .fontColor('#86868B')
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+            }
+            .width(240)
+            .height(180)
+            .padding(16)
+            .backgroundColor('#FFFFFF')
+            .borderRadius(16)
+            .shadow({ radius: 12, color: '#0A000000', offsetX: 0, offsetY: 2 })
+            .onClick(() => {
+              this.openPaperDetail(paper);
+            })
+          }, (paper: Paper) => paper.id + '_rec')
+        }
+        .padding({ left: 20, right: 20 })
+      }
+      .scrollable(ScrollDirection.Horizontal)
+      .scrollBar(BarState.Off)
+      .edgeEffect(EdgeEffect.Spring)
+    }
+    .margin({ bottom: 8 })
+  }
+
+  @Builder
   PaperCard(paper: Paper) {
     Column({ space: 8 }) {
       Row() {
         Text(paper.title)
           .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#1D2129')
+          .fontWeight(this.readPaperIds.includes(paper.id) ? FontWeight.Normal : FontWeight.Medium)
+          .fontColor(this.readPaperIds.includes(paper.id) ? '#86868B' : '#1D1D1F')
           .maxLines(2)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
 
-        Text(this.favoriteIds.includes(paper.id) ? '★' : '☆')
+        Text(this.favoriteIds.includes(paper.id) ? '♥' : '♡')
           .fontSize(22)
-          .fontColor(this.favoriteIds.includes(paper.id) ? '#F53F3F' : '#C9CDD4')
+          .fontColor(this.favoriteIds.includes(paper.id) ? '#FF6B6B' : '#C7C7CC')
           .margin({ left: 8 })
           .onClick(() => {
             this.toggleFavorite(paper);
@@ -465,7 +670,7 @@ struct Index {
       if (paper.authors.length > 0) {
         Text(this.getAuthorsText(paper))
           .fontSize(12)
-          .fontColor('#4E5969')
+          .fontColor('#3C3C43')
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
@@ -474,15 +679,29 @@ struct Index {
       if (this.getAffiliationsText(paper)) {
         Text(this.getAffiliationsText(paper))
           .fontSize(11)
-          .fontColor('#86909C')
+          .fontColor('#86868B')
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
       }
 
+      if (paper.tldr && paper.tldr.length > 0) {
+        Text(paper.tldr)
+          .fontSize(13)
+          .fontColor('#007AFF')
+          .fontWeight(FontWeight.Medium)
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .margin({ top: 8 })
+          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+          .backgroundColor('#F0F7FF')
+          .borderRadius(8)
+          .width('100%')
+      }
+
       Text(paper.summary)
         .fontSize(13)
-        .fontColor('#4E5969')
+        .fontColor('#3C3C43')
         .maxLines(3)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .lineHeight(20)
@@ -491,11 +710,21 @@ struct Index {
       Row() {
         Text(this.formatDate(paper.published))
           .fontSize(11)
-          .fontColor('#86909C')
+          .fontColor('#86868B')
 
         Blank()
 
         Row({ space: 4 }) {
+          if (this.isPublishedToday(paper)) {
+            Text('NEW')
+              .fontSize(10)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#FFFFFF')
+              .backgroundColor('#007AFF')
+              .borderRadius(4)
+              .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+          }
+
           ForEach(paper.categories.slice(0, 3), (cat: string) => {
             Text(cat)
               .fontSize(10)
@@ -513,8 +742,9 @@ struct Index {
     .padding(16)
     .backgroundColor('#FFFFFF')
     .borderRadius(12)
-    .border({ width: 1, color: '#E8EDF3', style: BorderStyle.Solid })
+    .border({ width: 1, color: '#E5E5EA', style: BorderStyle.Solid })
     .shadow({ radius: 4, color: '#0D000000', offsetX: 0, offsetY: 2 })
+    .opacity(this.readPaperIds.includes(paper.id) ? 0.7 : 1.0)
     .onClick(() => { this.openPaperDetail(paper); })
   }
 
@@ -525,14 +755,14 @@ struct Index {
         Text(paper.title)
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
-          .fontColor('#1D2129')
+          .fontColor('#1D1D1F')
           .maxLines(2)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
 
-        Text('★')
+        Text('♥')
           .fontSize(22)
-          .fontColor('#F53F3F')
+          .fontColor('#FF6B6B')
           .margin({ left: 8 })
           .onClick(() => { this.toggleFavorite(paper); })
       }
@@ -542,7 +772,7 @@ struct Index {
       if (paper.authors.length > 0) {
         Text(this.getAuthorsText(paper))
           .fontSize(12)
-          .fontColor('#4E5969')
+          .fontColor('#3C3C43')
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
@@ -550,7 +780,7 @@ struct Index {
 
       Text(paper.summary)
         .fontSize(13)
-        .fontColor('#4E5969')
+        .fontColor('#3C3C43')
         .maxLines(3)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .lineHeight(20)
@@ -559,7 +789,7 @@ struct Index {
       Row() {
         Text(this.formatDate(paper.published))
           .fontSize(11)
-          .fontColor('#86909C')
+          .fontColor('#86868B')
 
         Blank()
 
