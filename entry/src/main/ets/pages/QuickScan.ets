@@ -401,12 +401,12 @@ struct QuickScan {
                   Row({ space: 8 }) {
                     if (this.getRelevanceTags(this.papers[this.currentIdx]).length > 0) {
                       Row({ space: 4 }) {
-                        Text('✦').fontSize(10).fontColor('#FF9500')
-                        Text('与收藏相关').fontSize(11).fontColor('#FF9500').fontWeight(FontWeight.Medium)
+                        Text('✦').fontSize(10).fontColor('#007AFF')
+                        Text('与收藏相关').fontSize(11).fontColor('#007AFF').fontWeight(FontWeight.Medium)
                       }
                       .padding({ left: 8, right: 8, top: 3, bottom: 3 })
                       .borderRadius(10)
-                      .backgroundColor('#FF950015')
+                      .backgroundColor('#007AFF15')
                     }
 
                     Blank()
@@ -461,13 +461,13 @@ struct QuickScan {
                   // AI Quick Take
                   Column() {
                     Row({ space: 6 }) {
-                      Text('✦').fontSize(12).fontColor('#6C5CE7')
-                      Text('AI 速评').fontSize(13).fontWeight(FontWeight.Bold).fontColor('#6C5CE7')
+                      Text('✦').fontSize(12).fontColor('#007AFF')
+                      Text('AI 速评').fontSize(13).fontWeight(FontWeight.Bold).fontColor('#007AFF')
                     }
 
                     if (this.aiLoading[this.papers[this.currentIdx].id]) {
                       Row({ space: 6 }) {
-                        LoadingProgress().width(14).height(14).color('#6C5CE7')
+                        LoadingProgress().width(14).height(14).color('#007AFF')
                         Text('正在分析...').fontSize(13).fontColor('#AEAEB2')
                       }
                       .margin({ top: 6 })
@@ -486,9 +486,9 @@ struct QuickScan {
                   .width('100%')
                   .padding(12)
                   .margin({ left: 20, right: 20, top: 12 })
-                  .backgroundColor('#F5F3FF')
+                  .backgroundColor('#F0F5FF')
                   .borderRadius(10)
-                  .border({ width: { left: 3 }, color: '#6C5CE7' })
+                  .border({ width: { left: 3 }, color: '#007AFF' })
 
                   // Divider
                   Row().width('100%').height(1).backgroundColor('#F2F2F7')
@@ -521,10 +521,10 @@ struct QuickScan {
                       Text('关联关键词:').fontSize(11).fontColor('#AEAEB2')
                       ForEach(this.getRelevanceTags(this.papers[this.currentIdx]), (tag: string) => {
                         Text(tag)
-                          .fontSize(11).fontColor('#FF9500')
+                          .fontSize(11).fontColor('#007AFF')
                           .padding({ left: 6, right: 6, top: 2, bottom: 2 })
                           .borderRadius(4)
-                          .backgroundColor('#FF950015')
+                          .backgroundColor('#007AFF15')
                       }, (tag: string) => tag)
                     }
                     .padding({ left: 20, right: 20, top: 10 })
