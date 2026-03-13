@@ -86,6 +86,7 @@ struct PaperDetail {
   @State relatedLoading: boolean = false;
   @State showShareCard: boolean = false;
   @State shareCardGenerating: boolean = false;
+  @State showSummaryShareCard: boolean = false;
   private toastTimer: number = 0;
 
   aboutToAppear(): void { this.initData(); }
@@ -239,6 +240,41 @@ struct PaperDetail {
     }, 300);
   }
 
+  async shareSummaryImage(): Promise<void> {
+    if (!this.paper || this.summaryText.length === 0) return;
+    this.showSummaryShareCard = true;
+    setTimeout(async () => {
+      try {
+        const pixelMap = await componentSnapshot.get('summaryShareComp', { scale: 2, waitUntilRenderFinished: true });
+        const packer = image.createImagePacker();
+        const fp = getContext(this).filesDir + '/share_summary.png';
+        const file = fileIo.openSync(fp, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+        await packer.packToFile(pixelMap, file.fd, { format: 'image/png', quality: 100 });
+        fileIo.closeSync(file.fd);
+        packer.release();
+        pixelMap.release();
+        const uri = fileUri.getUriFromPath(fp);
+        const record: systemShare.SharedRecord = {
+          utd: 'general.image',
+          uri: uri,
+          title: `AI 解读: ${this.paper!.title}`,
+          description: 'arXplore AI 深度解读'
+        };
+        const shareData = new systemShare.SharedData(record);
+        const controller = new systemShare.ShareController(shareData);
+        const ctx = getContext(this) as common.UIAbilityContext;
+        this.showSummaryShareCard = false;
+        await controller.show(ctx, {
+          previewMode: systemShare.SharePreviewMode.DEFAULT,
+          selectionMode: systemShare.SelectionMode.SINGLE
+        });
+      } catch (_) {
+        this.showSummaryShareCard = false;
+        this.showToast('总结图片生成失败');
+      }
+    }, 300);
+  }
+
   showToast(msg: string): void {
     this.toastMsg = msg;
     if (this.toastTimer > 0) clearTimeout(this.toastTimer);
@@ -273,11 +309,23 @@ struct PaperDetail {
   hasAnno(): boolean { try { return fileIo.accessSync(this.annoPath()); } catch (_) { return false; } }
 
   // ---- LLM ----
+  buildPaperContext(): string {
+    const p = this.paper!;
+    return `标题：${p.title}\n作者：${this.authors()}\n机构：${this.affiliations()}\n分类：${p.categories.join(', ')}\n摘要：${p.summary}`;
+  }
+
   async generateSummary(): Promise<void> {
     if (!this.paper) return;
     this.summaryLoading = true; this.summaryText = ''; this.showSummary = true;
-    const prompt = `请用中文简洁总结以下学术论文的核心内容、方法和贡献，控制在200字以内：\n\n标题：${this.paper.title}\n\n摘要：${this.paper.summary}`;
+    const ctx = this.buildPaperContext();
+
     if (this.llmInited) {
+      // On-device: single prompt (limited capability)
+      const prompt = `你是一位资深 AI 论文审稿人。请用中文对以下论文做结构化深度解读，严格按照以下格式输出，每个标题独占一行，内容紧跟标题下方：
+
+【作者与机构】【问题定义】【研究背景】【业界现有方案】【论文方案】【主要成果】【不足与展望】【端侧部署启示】
+
+${ctx}`;
       const question: localChatModel.QuestionInfo = { questionId: Date.now(), content: prompt };
       try {
         await localChatModel.chat(question, { isStream: true } as localChatModel.Config,
@@ -288,8 +336,16 @@ struct PaperDetail {
           });
       } catch (_) { this.summaryText = '总结生成失败，请稍后重试'; this.summaryLoading = false; }
     } else {
+      // Cloud: split into 3 parallel requests, then merge
+      const base = `你是一位资深 AI 论文审稿人，请用中文回答，严格按【标题】格式输出，每节 2-4 句话。\n\n${ctx}\n\n请只输出以下部分：\n`;
+      const prompts: string[] = [
+        base + '【作者与机构】简述第一作者和主要合作机构的背景\n【问题定义】论文要解决的核心问题\n【研究背景】该问题的学术和工业背景，为什么重要',
+        base + '【业界现有方案】目前主流解决思路及其局限\n【论文方案】本文提出的方法/架构/算法核心思路\n【主要成果】关键实验结果、指标、与 SOTA 对比',
+        base + '【不足与展望】论文局限性及未来改进方向\n【端侧部署启示】对移动端/边缘端大模型部署的参考价值（模型压缩、推理优化、量化、蒸馏等角度）',
+      ];
       try {
-        this.summaryText = await CloudLLMService.chat(prompt);
+        const results = await Promise.all(prompts.map(p => CloudLLMService.chat(p)));
+        this.summaryText = results.join('\n\n');
       } catch (_) { this.summaryText = '云端 AI 请求失败，请检查网络'; }
       this.summaryLoading = false;
     }
@@ -539,6 +595,7 @@ struct PaperDetail {
 
       // Share card (rendered offscreen for snapshot)
       if (this.showShareCard && this.paper) { this.ShareCardOverlay() }
+      if (this.showSummaryShareCard && this.paper) { this.SummaryShareOverlay() }
 
       // Toast
       if (this.toastMsg) {
@@ -828,74 +885,230 @@ struct PaperDetail {
   }
 
   // ================================================================
-  //  AI Summary Sheet
+  //  AI Summary Sheet — Premium Design
   // ================================================================
+
+  parseSections(): Array<[string, string, string, string]> {
+    const sections: Array<[string, string, string, string]> = [];
+    const iconMap: Record<string, [string, string]> = {
+      '作者与机构': ['🏛', '#6C5CE7'],
+      '问题定义': ['🎯', '#E17055'],
+      '研究背景': ['📚', '#0984E3'],
+      '业界现有方案': ['🔍', '#00B894'],
+      '论文方案': ['💡', '#F39C12'],
+      '主要成果': ['📊', '#E84393'],
+      '不足与展望': ['⚠', '#636E72'],
+      '端侧部署启示': ['📱', '#6C5CE7'],
+    };
+    const regex = /【([^】]+)】/g;
+    const text = this.summaryText;
+    const matches: Array<[number, string]> = [];
+    let m: RegExpExecArray | null = regex.exec(text);
+    while (m !== null) {
+      matches.push([m.index, m[1]]);
+      m = regex.exec(text);
+    }
+    for (let i = 0; i < matches.length; i++) {
+      const title = matches[i][1];
+      const start = matches[i][0] + title.length + 2;
+      const end = i + 1 < matches.length ? matches[i + 1][0] : text.length;
+      const content = text.substring(start, end).trim();
+      const pair = iconMap[title];
+      const icon = pair ? pair[0] : '•';
+      const color = pair ? pair[1] : '#007AFF';
+      sections.push([title, content, icon, color]);
+    }
+    return sections;
+  }
+
   @Builder
   SummarySheet() {
     Column() {
       Blank()
 
       Column() {
-        // 手柄
+        // Drag handle
         Column()
-          .width(36).height(5).borderRadius(2.5).backgroundColor('#D1D1D6')
-          .margin({ top: 8, bottom: 16 })
+          .width(36).height(4).borderRadius(2).backgroundColor('#D1D1D6')
+          .margin({ top: 10, bottom: 12 })
 
+        // Header
         Row() {
-          Text('AI 总结')
-            .fontSize(18)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#000000')
+          Row({ space: 6 }) {
+            Text('✦')
+              .fontSize(16)
+              .fontColor('#007AFF')
+            Text('AI 深度解读')
+              .fontSize(17)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#1D1D1F')
+          }
+
           Blank()
-          Text('完成')
-            .fontSize(16)
-            .fontColor('#007AFF')
+
+          if (this.llmInited) {
+            Text('端侧')
+              .fontSize(11)
+              .fontColor('#34C759')
+              .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+              .borderRadius(4)
+              .backgroundColor('#34C75915')
+          } else {
+            Text('云侧')
+              .fontSize(11)
+              .fontColor('#007AFF')
+              .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+              .borderRadius(4)
+              .backgroundColor('#007AFF15')
+          }
+
+          if (!this.summaryLoading && this.summaryText.length > 0) {
+            Text('↗')
+              .fontSize(18)
+              .fontColor('#007AFF')
+              .margin({ left: 12 })
+              .onClick(() => { this.shareSummaryImage(); })
+          }
+
+          Text('✕')
+            .fontSize(18)
+            .fontColor('#86868B')
             .fontWeight(FontWeight.Medium)
+            .margin({ left: 12 })
             .onClick(() => { this.showSummary = false; })
         }
         .width('100%')
-        .padding({ left: 24, right: 24, bottom: 16 })
+        .padding({ left: 20, right: 20, bottom: 12 })
 
-        Divider().color('#E5E5EA')
+        // Thin gradient divider
+        Row()
+          .width('100%')
+          .height(2)
+          .linearGradient({
+            direction: GradientDirection.Right,
+            colors: [['#007AFF', 0], ['#6C5CE7', 0.5], ['#E84393', 1]]
+          })
 
+        // Content area
         Scroll() {
           Column() {
             if (this.summaryLoading && this.summaryText.length === 0) {
-              Row({ space: 8 }) {
-                LoadingProgress().width(18).height(18).color('#007AFF')
-                Text('正在分析...').fontSize(15).fontColor('#86868B')
-              }
-              .padding({ top: 24 })
-              .justifyContent(FlexAlign.Center)
-              .width('100%')
-            } else {
-              Text(this.summaryText)
-                .fontSize(16)
-                .fontColor('#1D1D1F')
-                .lineHeight(26)
-                .width('100%')
-                .padding({ top: 20 })
+              // Loading state — skeleton-like
+              Column({ space: 16 }) {
+                Row({ space: 10 }) {
+                  LoadingProgress().width(20).height(20).color('#007AFF')
+                  Text('正在深度分析论文...')
+                    .fontSize(15)
+                    .fontColor('#86868B')
+                }
 
-              if (this.summaryLoading) {
-                LoadingProgress().width(14).height(14).color('#007AFF').margin({ top: 8 })
+                // Shimmer hint
+                ForEach(['作者与机构', '问题定义', '研究背景', '论文方案'], (title: string) => {
+                  Row({ space: 8 }) {
+                    Column()
+                      .width(4)
+                      .height(16)
+                      .borderRadius(2)
+                      .backgroundColor('#E5E5EA')
+                    Text(title)
+                      .fontSize(13)
+                      .fontColor('#C7C7CC')
+                  }
+                })
+              }
+              .width('100%')
+              .padding({ top: 24, left: 20, right: 20 })
+              .alignItems(HorizontalAlign.Start)
+            } else {
+              // Parsed sections
+              Column({ space: 2 }) {
+                ForEach(this.parseSections(), (item: [string, string, string, string]) => {
+                  Column() {
+                    // Section header
+                    Row({ space: 8 }) {
+                      Text(item[2])
+                        .fontSize(15)
+                      Text(item[0])
+                        .fontSize(15)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor(item[3])
+                    }
+                    .margin({ bottom: 6 })
+
+                    // Section content
+                    Text(item[1])
+                      .fontSize(14)
+                      .fontColor('#3C3C43')
+                      .lineHeight(22)
+                      .width('100%')
+                  }
+                  .width('100%')
+                  .padding(14)
+                  .backgroundColor('#F8F9FA')
+                  .borderRadius(10)
+                  .border({ width: { left: 3 }, color: item[3] })
+                })
+
+                // Fallback: raw text when sections can't be parsed
+                if (this.parseSections().length === 0 && this.summaryText.length > 0) {
+                  Text(this.summaryText)
+                    .fontSize(14)
+                    .fontColor('#3C3C43')
+                    .lineHeight(22)
+                    .width('100%')
+                    .padding(14)
+                }
+
+                if (this.summaryLoading) {
+                  Row({ space: 6 }) {
+                    LoadingProgress().width(14).height(14).color('#007AFF')
+                    Text('生成中...')
+                      .fontSize(13)
+                      .fontColor('#86868B')
+                  }
+                  .margin({ top: 4 })
+                  .justifyContent(FlexAlign.Center)
+                  .width('100%')
+                }
+              }
+              .padding({ top: 16, left: 16, right: 16 })
+            }
+
+            // Bottom: paper title reference
+            if (this.paper && !this.summaryLoading) {
+              Column() {
+                Row()
+                  .width(40)
+                  .height(1)
+                  .backgroundColor('#E5E5EA')
+                  .margin({ top: 16, bottom: 10 })
+
+                Text(this.paper!.title)
+                  .fontSize(12)
+                  .fontColor('#AEAEB2')
+                  .maxLines(1)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  .width('100%')
+                  .textAlign(TextAlign.Center)
+                  .padding({ left: 16, right: 16 })
               }
             }
-            Row().height(32)
+
+            Row().height(28)
           }
-          .padding({ left: 24, right: 24 })
         }
         .layoutWeight(1)
         .scrollBar(BarState.Off)
       }
       .width('100%')
-      .height('45%')
+      .height('75%')
       .backgroundColor('#FFFFFF')
-      .borderRadius({ topLeft: 14, topRight: 14 })
-      .shadow({ radius: 20, color: '#26000000', offsetX: 0, offsetY: -2 })
+      .borderRadius({ topLeft: 16, topRight: 16 })
+      .shadow({ radius: 24, color: '#33000000', offsetX: 0, offsetY: -4 })
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#00000033')
+    .backgroundColor('#00000040')
     .onClick(() => { this.showSummary = false; })
   }
 
@@ -1240,6 +1453,117 @@ struct PaperDetail {
       .shadow({ radius: 16, color: '#26000000', offsetX: 0, offsetY: 4 })
       .position({ x: -9999 })
       .id('shareCardComp')
+    }
+    .width('100%').height('100%')
+  }
+
+  // ================================================================
+  //  AI Summary Share Card — 分享 AI 解读为图片
+  // ================================================================
+  @Builder
+  SummaryShareOverlay() {
+    Column() {
+      // Backdrop
+      Column() {
+        LoadingProgress().width(32).height(32).color('#FFFFFF')
+        Text('正在生成解读卡片...').fontSize(14).fontColor('#FFFFFF').margin({ top: 8 })
+      }
+      .width('100%').height('100%')
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+      .backgroundColor('#00000066')
+
+      // Offscreen card for snapshot
+      Column({ space: 0 }) {
+        // Top gradient
+        Row()
+          .width('100%').height(6)
+          .linearGradient({ direction: GradientDirection.Right, colors: [['#007AFF', 0], ['#6C5CE7', 0.5], ['#E84393', 1]] })
+
+        Column({ space: 12 }) {
+          // Header: branding + badge
+          Row() {
+            Row({ space: 4 }) {
+              Text('✦').fontSize(14).fontColor('#007AFF')
+              Text('arXplore AI 深度解读').fontSize(13).fontWeight(FontWeight.Bold).fontColor('#007AFF')
+            }
+            Blank()
+            Text(this.llmInited ? '端侧推理' : '云侧推理')
+              .fontSize(10).fontColor('#86868B')
+              .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+              .borderRadius(4).backgroundColor('#F2F2F7')
+          }
+          .width('100%')
+
+          // Paper title
+          Text(this.paper!.title)
+            .fontSize(15).fontWeight(FontWeight.Bold).fontColor('#1D1D1F')
+            .lineHeight(22).width('100%')
+            .maxLines(3).textOverflow({ overflow: TextOverflow.Ellipsis })
+
+          // Authors
+          Text(this.authors())
+            .fontSize(11).fontColor('#86868B')
+            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+            .width('100%')
+
+          Row().width('100%').height(1).backgroundColor('#F2F2F7')
+
+          // Sections
+          ForEach(this.parseSections(), (item: [string, string, string, string]) => {
+            Column() {
+              Row({ space: 6 }) {
+                Text(item[2]).fontSize(12)
+                Text(item[0]).fontSize(12).fontWeight(FontWeight.Bold).fontColor(item[3])
+              }
+              .margin({ bottom: 4 })
+
+              Text(item[1])
+                .fontSize(11).fontColor('#3C3C43')
+                .lineHeight(18).width('100%')
+            }
+            .width('100%')
+            .padding(10)
+            .backgroundColor('#F8F9FA')
+            .borderRadius(8)
+            .border({ width: { left: 2 }, color: item[3] })
+          })
+
+          // Fallback raw text
+          if (this.parseSections().length === 0 && this.summaryText.length > 0) {
+            Text(this.summaryText)
+              .fontSize(11).fontColor('#3C3C43')
+              .lineHeight(18).width('100%')
+          }
+
+          // Footer
+          Row().width('100%').height(1).backgroundColor('#F2F2F7').margin({ top: 4 })
+
+          Row() {
+            Column({ space: 2 }) {
+              Text(this.paperId()).fontSize(10).fontColor('#AEAEB2')
+              Text('来自 arXplore · AI 深度解读').fontSize(9).fontColor('#C9CDD4')
+            }
+            Blank()
+            Column() {
+              Text('aX').fontSize(18).fontWeight(FontWeight.Bold).fontColor('#FFFFFF')
+            }
+            .width(36).height(36).borderRadius(8)
+            .linearGradient({ direction: GradientDirection.Right, colors: [['#007AFF', 0], ['#6C5CE7', 1]] })
+            .justifyContent(FlexAlign.Center)
+          }
+          .width('100%')
+          .alignItems(VerticalAlign.Center)
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 14, bottom: 14 })
+      }
+      .width(380)
+      .backgroundColor('#FFFFFF')
+      .borderRadius(16)
+      .shadow({ radius: 16, color: '#26000000', offsetX: 0, offsetY: 4 })
+      .position({ x: -9999 })
+      .id('summaryShareComp')
     }
     .width('100%').height('100%')
   }

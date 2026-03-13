@@ -34,7 +34,7 @@ export class CloudLLMService {
     const req = http.createHttp();
     try {
       const msg: ReqMessage = { role: 'user', content: prompt };
-      const body: ReqBody = { model: MODEL, messages: [msg], max_tokens: 800, temperature: 0.7 };
+      const body: ReqBody = { model: MODEL, messages: [msg], max_tokens: 2048, temperature: 0.7 };
       const resp = await req.request(API_URL, {
         method: http.RequestMethod.POST,
         header: {
