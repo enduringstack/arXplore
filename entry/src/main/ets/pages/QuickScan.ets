@@ -4,6 +4,7 @@ import { Paper, Category } from '../model/DataModels';
 import { ArxivService } from '../service/ArxivService';
 import { PreferencesUtil } from '../common/PreferencesUtil';
 import { CloudLLMService } from '../service/CloudLLMService';
+import { RecommendService } from '../service/RecommendService';
 
 @Entry
 @Component
@@ -24,12 +25,17 @@ struct QuickScan {
   @State aiTakes: Record<string, string> = {};
   @State aiLoading: Record<string, boolean> = {};
   @State llmInited: boolean = false;
+  @State rlStats: string = '';
   // Saved paper keywords for relevance matching
   private savedKeywords: Set<string> = new Set();
   private animating: boolean = false;
 
   aboutToAppear(): void {
     this.loadPapers();
+  }
+
+  aboutToDisappear(): void {
+    RecommendService.save();
   }
 
   async loadPapers(): Promise<void> {
@@ -66,19 +72,14 @@ struct QuickScan {
       } catch (_) {}
     }
 
-    // Sort by relevance score (matching saved keywords)
-    const scoreMap = new Map<string, number>();
-    for (const p of all) {
-      scoreMap.set(p.id, this.computeRelevance(p));
-    }
-    all.sort((a, b) => {
-      const sa = scoreMap.get(a.id) || 0;
-      const sb = scoreMap.get(b.id) || 0;
-      return sb - sa;
-    });
+    // Init LinUCB recommendation engine with saved papers
+    RecommendService.init(getContext(this).filesDir, favPapers);
 
-    this.papers = all.slice(0, 30);
+    // Rank papers using LinUCB (combines learned preferences + exploration)
+    const ranked = RecommendService.rank(all);
+    this.papers = ranked.slice(0, 30);
     this.isLoading = false;
+    this.rlStats = RecommendService.getStats();
 
     // Init LLM
     try { this.llmInited = await localChatModel.init(); } catch (_) { this.llmInited = false; }
@@ -179,6 +180,7 @@ struct QuickScan {
   skip(): void {
     if (this.animating || this.currentIdx >= this.papers.length) return;
     this.animating = true;
+    RecommendService.update(this.papers[this.currentIdx], 0); // negative signal
     this.skippedCount++;
     animateTo({ duration: 250, curve: Curve.EaseOut }, () => {
       this.cardOffsetX = -600;
@@ -201,6 +203,7 @@ struct QuickScan {
     this.animating = true;
     const paper = this.papers[this.currentIdx];
     if (paper) {
+      RecommendService.update(paper, 1); // positive signal
       PreferencesUtil.addFavorite(paper);
       this.favoriteIds = [...this.favoriteIds, paper.id];
       this.savedCount++;
@@ -223,6 +226,7 @@ struct QuickScan {
 
   openDetail(): void {
     if (this.currentIdx >= this.papers.length) return;
+    RecommendService.update(this.papers[this.currentIdx], 0.5); // mild positive
     AppStorage.setOrCreate('selectedPaperJson', JSON.stringify(this.papers[this.currentIdx]));
     router.pushUrl({ url: 'pages/PaperDetail' });
   }
@@ -254,8 +258,16 @@ struct QuickScan {
         Blank()
 
         if (!this.isDone() && this.papers.length > 0 && !this.isLoading) {
-          Text(`${this.currentIdx + 1} / ${this.papers.length}`)
-            .fontSize(13).fontColor('#AEAEB2').padding({ right: 16 })
+          Column() {
+            Text(`${this.currentIdx + 1} / ${this.papers.length}`)
+              .fontSize(13).fontColor('#AEAEB2')
+            if (this.rlStats) {
+              Text(this.rlStats)
+                .fontSize(9).fontColor('#C7C7CC')
+            }
+          }
+          .alignItems(HorizontalAlign.End)
+          .padding({ right: 16 })
         }
       }
       .width('100%').height(44)
