@@ -458,50 +458,55 @@ export struct QuickScanPage {
 
                   // TLDR一句话摘要
                   if (this.papers[this.currentIdx].tldr && this.papers[this.currentIdx].tldr!.length > 0) {
-                    Text(this.papers[this.currentIdx].tldr!)
-                      .fontSize(13)
-                      .fontColor('#007AFF')
-                      .fontWeight(FontWeight.Medium)
-                      .maxLines(2)
-                      .textOverflow({ overflow: TextOverflow.Ellipsis })
-                      .margin({ top: 12 })
-                      .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-                      .backgroundColor('#F0F7FF')
-                      .borderRadius(8)
-                      .width('100%')
-                      .margin({ left: 24, right: 24, top: 12 })
+                    Column() {
+                      Text(this.papers[this.currentIdx].tldr!)
+                        .fontSize(13)
+                        .fontColor('#007AFF')
+                        .fontWeight(FontWeight.Medium)
+                        .maxLines(2)
+                        .textOverflow({ overflow: TextOverflow.Ellipsis })
+                        .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                        .backgroundColor('#F0F7FF')
+                        .borderRadius(8)
+                        .width('100%')
+                    }
+                    .width('100%')
+                    .padding({ left: 24, right: 24, top: 12 })
                   }
 
                   // AI Quick Take
                   Column() {
-                    Row({ space: 6 }) {
-                      Text('✦').fontSize(12).fontColor('#007AFF')
-                      Text('AI 速评').fontSize(13).fontWeight(FontWeight.Medium).fontColor('#007AFF')
-                    }
-
-                    if (this.aiLoading[this.papers[this.currentIdx].id]) {
+                    Column() {
                       Row({ space: 6 }) {
-                        LoadingProgress().width(14).height(14).color('#007AFF')
-                        Text('正在分析...').fontSize(13).fontColor('#AEAEB2')
+                        Text('✦').fontSize(12).fontColor('#007AFF')
+                        Text('AI 速评').fontSize(13).fontWeight(FontWeight.Medium).fontColor('#007AFF')
                       }
-                      .margin({ top: 8 })
-                    } else if (this.aiTakes[this.papers[this.currentIdx].id]) {
-                      Text(this.aiTakes[this.papers[this.currentIdx].id])
-                        .fontSize(13).fontColor('#48484A').lineHeight(20)
+
+                      if (this.aiLoading[this.papers[this.currentIdx].id]) {
+                        Row({ space: 6 }) {
+                          LoadingProgress().width(14).height(14).color('#007AFF')
+                          Text('正在分析...').fontSize(13).fontColor('#AEAEB2')
+                        }
                         .margin({ top: 8 })
-                        .width('100%')
-                    } else {
-                      Text('点击生成 AI 速评')
-                        .fontSize(13).fontColor('#C7C7CC')
-                        .margin({ top: 8 })
-                        .onClick(() => { this.generateAiTake(this.papers[this.currentIdx]); })
+                      } else if (this.aiTakes[this.papers[this.currentIdx].id]) {
+                        Text(this.aiTakes[this.papers[this.currentIdx].id])
+                          .fontSize(13).fontColor('#48484A').lineHeight(20)
+                          .margin({ top: 8 })
+                          .width('100%')
+                      } else {
+                        Text('点击生成 AI 速评')
+                          .fontSize(13).fontColor('#C7C7CC')
+                          .margin({ top: 8 })
+                          .onClick(() => { this.generateAiTake(this.papers[this.currentIdx]); })
+                      }
                     }
+                    .width('100%')
+                    .padding(16)
+                    .backgroundColor('#F2F2F7')
+                    .borderRadius(12)
                   }
                   .width('100%')
-                  .padding(16)
-                  .margin({ left: 24, right: 24, top: 16 })
-                  .backgroundColor('#F2F2F7')
-                  .borderRadius(12)
+                  .padding({ left: 24, right: 24, top: 16, bottom: 8 })
 
                   // Divider
                   Row().width('100%').height(0.5).backgroundColor('#E5E5EA')
@@ -634,31 +639,33 @@ export struct QuickScanPage {
         // Action buttons
         Row() {
           // Skip button
-          Column({ space: 8 }) {
+          Column({ space: 6 }) {
             Column() {
-              Text('\u2717').fontSize(22).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+              SymbolGlyph($r('sys.symbol.heart_slash'))
+                .fontSize(22).fontColor(['#FF3B30'])
             }
-            .width(52).height(52).borderRadius(26)
-            .backgroundColor('#FF3B30')
+            .width(54).height(54).borderRadius(27)
+            .backgroundColor('#FFFFFF')
             .justifyContent(FlexAlign.Center)
-            .shadow({ radius: 8, color: '#33FF3B30', offsetX: 0, offsetY: 4 })
+            .shadow({ radius: 16, color: '#14000000', offsetX: 0, offsetY: 4 })
 
-            Text('跳过').fontSize(10).fontColor('#86868B')
+            Text('跳过').fontSize(11).fontColor('#8E8E93')
           }
           .alignItems(HorizontalAlign.Center)
           .onClick(() => { this.skip(); })
 
           // AI assess button
-          Column({ space: 8 }) {
+          Column({ space: 6 }) {
             Column() {
-              Text('✦').fontSize(20).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+              SymbolGlyph($r('sys.symbol.wand_and_stars_fill'))
+                .fontSize(22).fontColor(['#5856D6'])
             }
-            .width(52).height(52).borderRadius(26)
-            .backgroundColor('#5856D6')
+            .width(54).height(54).borderRadius(27)
+            .backgroundColor('#FFFFFF')
             .justifyContent(FlexAlign.Center)
-            .shadow({ radius: 8, color: '#335856D6', offsetX: 0, offsetY: 4 })
+            .shadow({ radius: 16, color: '#14000000', offsetX: 0, offsetY: 4 })
 
-            Text('AI').fontSize(10).fontColor('#86868B')
+            Text('AI').fontSize(11).fontColor('#8E8E93')
           }
           .alignItems(HorizontalAlign.Center)
           .onClick(() => {
@@ -668,31 +675,33 @@ export struct QuickScanPage {
           })
 
           // Detail button
-          Column({ space: 8 }) {
+          Column({ space: 6 }) {
             Column() {
-              Text('\u2197').fontSize(20).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+              SymbolGlyph($r('sys.symbol.doc_text'))
+                .fontSize(22).fontColor(['#48484A'])
             }
-            .width(52).height(52).borderRadius(26)
-            .backgroundColor('#86868B')
+            .width(54).height(54).borderRadius(27)
+            .backgroundColor('#FFFFFF')
             .justifyContent(FlexAlign.Center)
-            .shadow({ radius: 8, color: '#3386868B', offsetX: 0, offsetY: 4 })
+            .shadow({ radius: 16, color: '#14000000', offsetX: 0, offsetY: 4 })
 
-            Text('详情').fontSize(10).fontColor('#86868B')
+            Text('详情').fontSize(11).fontColor('#8E8E93')
           }
           .alignItems(HorizontalAlign.Center)
           .onClick(() => { this.openDetail(); })
 
           // Save button
-          Column({ space: 8 }) {
+          Column({ space: 6 }) {
             Column() {
-              Text('\u2605').fontSize(22).fontColor('#FFFFFF').fontWeight(FontWeight.Bold)
+              SymbolGlyph($r('sys.symbol.star_fill'))
+                .fontSize(22).fontColor(['#FF9500'])
             }
-            .width(52).height(52).borderRadius(26)
-            .backgroundColor('#007AFF')
+            .width(54).height(54).borderRadius(27)
+            .backgroundColor('#FFFFFF')
             .justifyContent(FlexAlign.Center)
-            .shadow({ radius: 8, color: '#33007AFF', offsetX: 0, offsetY: 4 })
+            .shadow({ radius: 16, color: '#14000000', offsetX: 0, offsetY: 4 })
 
-            Text('收藏').fontSize(10).fontColor('#86868B')
+            Text('收藏').fontSize(11).fontColor('#8E8E93')
           }
           .alignItems(HorizontalAlign.Center)
           .onClick(() => { this.save(); })
@@ -705,12 +714,14 @@ export struct QuickScanPage {
         // Stats
         Row({ space: 16 }) {
           Row({ space: 4 }) {
-            Text('\u2605').fontSize(12).fontColor('#007AFF')
-            Text(`${this.savedCount}`).fontSize(12).fontColor('#007AFF').fontWeight(FontWeight.Medium)
+            SymbolGlyph($r('sys.symbol.star_fill'))
+              .fontSize(12).fontColor(['#FF9500'])
+            Text(`${this.savedCount}`).fontSize(12).fontColor('#FF9500').fontWeight(FontWeight.Medium)
           }
           Text('\u00B7').fontSize(14).fontColor('#D1D1D6')
           Row({ space: 4 }) {
-            Text('\u2717').fontSize(12).fontColor('#AEAEB2')
+            SymbolGlyph($r('sys.symbol.heart_slash'))
+              .fontSize(12).fontColor(['#AEAEB2'])
             Text(`${this.skippedCount}`).fontSize(12).fontColor('#AEAEB2').fontWeight(FontWeight.Medium)
           }
         }

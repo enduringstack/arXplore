@@ -111,6 +111,9 @@ export struct IndexPage {
       this.papers = result;
       if (result.length < this.pageSize) this.hasMore = false;
       this.cacheHint = this.formatCacheTime(category.query);
+      if (this.cacheHint) {
+        setTimeout(() => { this.cacheHint = ''; }, 3000);
+      }
       this.getRecommendations();
       this.generateTLDRs();
     } catch (_e) {
@@ -656,9 +659,9 @@ export struct IndexPage {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
 
-        Text(this.favoriteIds.includes(paper.id) ? '♥' : '♡')
+        SymbolGlyph(this.favoriteIds.includes(paper.id) ? $r('sys.symbol.star_fill') : $r('sys.symbol.ohos_star'))
           .fontSize(22)
-          .fontColor(this.favoriteIds.includes(paper.id) ? '#FF6B6B' : '#C7C7CC')
+          .fontColor([this.favoriteIds.includes(paper.id) ? '#FF9500' : '#C7C7CC'])
           .margin({ left: 8 })
           .onClick(() => {
             this.toggleFavorite(paper);
@@ -760,9 +763,9 @@ export struct IndexPage {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
 
-        Text('♥')
+        SymbolGlyph($r('sys.symbol.star_fill'))
           .fontSize(22)
-          .fontColor('#FF6B6B')
+          .fontColor(['#FF9500'])
           .margin({ left: 8 })
           .onClick(() => { this.toggleFavorite(paper); })
       }

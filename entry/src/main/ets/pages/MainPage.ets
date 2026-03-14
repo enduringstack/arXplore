@@ -9,10 +9,11 @@ struct MainPage {
   private controller: TabsController = new TabsController();
 
   @Builder
-  TabBarItem(title: string, iconNormal: string, iconSelected: string, index: number) {
+  TabBarItem(title: string, iconNormal: Resource, iconSelected: Resource, index: number) {
     Column() {
-      Text(index === this.currentIndex ? iconSelected : iconNormal)
+      SymbolGlyph(index === this.currentIndex ? iconSelected : iconNormal)
         .fontSize(24)
+        .fontColor([index === this.currentIndex ? '#007AFF' : '#8E8E93'])
       Text(title)
         .fontSize(10)
         .fontWeight(FontWeight.Medium)
@@ -33,7 +34,7 @@ struct MainPage {
           this.controller.changeIndex(index);
         }})
       }
-      .tabBar(this.TabBarItem('探索', '\uD83E\uDDED', '\uD83E\uDDED', 0))
+      .tabBar(this.TabBarItem('发现', $r('sys.symbol.discover'), $r('sys.symbol.discover_fill'), 0))
 
       TabContent() {
         QuickScanPage({ onSwitchTab: (index: number) => {
@@ -41,12 +42,12 @@ struct MainPage {
           this.controller.changeIndex(index);
         }})
       }
-      .tabBar(this.TabBarItem('速览', '\u26A1', '\u26A1', 1))
+      .tabBar(this.TabBarItem('速览', $r('sys.symbol.rectangle_stack'), $r('sys.symbol.rectangle_stack'), 1))
 
       TabContent() {
         ReadingPlanPage()
       }
-      .tabBar(this.TabBarItem('书架', '\uD83D\uDCDA', '\uD83D\uDCDA', 2))
+      .tabBar(this.TabBarItem('收藏', $r('sys.symbol.star_fill'), $r('sys.symbol.star_fill'), 2))
     }
     .scrollable(false)
     .barMode(BarMode.Fixed)

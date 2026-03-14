@@ -312,7 +312,7 @@ struct PaperDetail {
         this.showSummaryShareCard = false;
         this.showToast('总结图片生成失败');
       }
-    }, 300);
+    }, 500);
   }
 
   showToast(msg: string): void {
@@ -635,7 +635,16 @@ ${ctx}`;
 
       // Share card (rendered offscreen for snapshot)
       if (this.showShareCard && this.paper) { this.ShareCardOverlay() }
-      if (this.showSummaryShareCard && this.paper) { this.SummaryShareOverlay() }
+      if (this.showSummaryShareCard && this.paper) { this.SummaryShareBackdrop() }
+      // Offscreen: Scroll gives card unlimited layout height for full snapshot
+      if (this.showSummaryShareCard && this.paper) {
+        Scroll() {
+          this.SummaryShareCard()
+        }
+        .width(720)
+        .position({ x: -9999, y: 0 })
+        .scrollBar(BarState.Off)
+      }
 
       // Share sheet
       if (this.showShareSheet) { this.ShareSheet() }
@@ -708,17 +717,24 @@ ${ctx}`;
 
         Row() {
           SymbolGlyph($r('sys.symbol.share'))
-            .fontSize(20)
+            .fontSize(16)
             .fontColor(['#007AFF'])
         }
-        .width(44).height(44)
-        .justifyContent(FlexAlign.Center)
+        .padding({ left: 8, right: 8, top: 5, bottom: 5 })
+        .borderRadius(14)
+        .backgroundColor('#0A007AFF')
+        .margin({ right: 4 })
         .onClick(() => { this.showShareSheet = true; })
 
-        Text(this.isFavorite ? '♥' : '♡')
-          .fontSize(22)
-          .fontColor(this.isFavorite ? '#FF6B6B' : '#C7C7CC')
-          .onClick(() => { this.toggleFav(); })
+        Row() {
+          SymbolGlyph(this.isFavorite ? $r('sys.symbol.star_fill') : $r('sys.symbol.ohos_star'))
+            .fontSize(16)
+            .fontColor([this.isFavorite ? '#FF9500' : '#007AFF'])
+        }
+        .padding({ left: 8, right: 8, top: 5, bottom: 5 })
+        .borderRadius(14)
+        .backgroundColor(this.isFavorite ? '#0AFF9500' : '#0A007AFF')
+        .onClick(() => { this.toggleFav(); })
       }
       .width('100%')
       .height(44)
@@ -951,14 +967,14 @@ ${ctx}`;
   parseSections(): Array<[string, string, string, string]> {
     const sections: Array<[string, string, string, string]> = [];
     const iconMap: Record<string, [string, string]> = {
-      '作者与机构': ['🏛', '#3C3C43'],
-      '问题定义': ['🎯', '#3C3C43'],
-      '研究背景': ['📚', '#3C3C43'],
-      '业界现有方案': ['🔍', '#3C3C43'],
-      '论文方案': ['💡', '#3C3C43'],
-      '主要成果': ['📊', '#3C3C43'],
-      '不足与展望': ['⚠', '#3C3C43'],
-      '端侧芯片AI解决方案的启示': ['📱', '#3C3C43'],
+      '作者与机构': ['', '#5856D6'],
+      '问题定义': ['', '#FF3B30'],
+      '研究背景': ['', '#007AFF'],
+      '业界现有方案': ['', '#FF9500'],
+      '论文方案': ['', '#34C759'],
+      '主要成果': ['', '#007AFF'],
+      '不足与展望': ['', '#FF9500'],
+      '端侧芯片AI解决方案的启示': ['', '#5856D6'],
     };
     const regex = /【([^】]+)】/g;
     const text = this.summaryText;
@@ -1006,35 +1022,35 @@ ${ctx}`;
 
           Blank()
 
-          if (this.llmInited) {
-            Text('端侧')
-              .fontSize(11)
-              .fontColor('#34C759')
-              .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-              .borderRadius(4)
-              .backgroundColor('#34C75915')
-          } else {
-            Text('云侧')
-              .fontSize(11)
-              .fontColor('#007AFF')
-              .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-              .borderRadius(4)
-              .backgroundColor('#007AFF15')
-          }
+          Text(this.llmInited ? '端侧' : '云侧')
+            .fontSize(13)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.llmInited ? '#34C759' : '#007AFF')
+            .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+            .borderRadius(14)
+            .backgroundColor(this.llmInited ? '#0A34C759' : '#0A007AFF')
 
           if (!this.summaryLoading && this.summaryText.length > 0) {
-            Text('↗')
-              .fontSize(18)
-              .fontColor('#007AFF')
-              .margin({ left: 12 })
-              .onClick(() => { this.shareSummaryImage(); })
+            Row() {
+              SymbolGlyph($r('sys.symbol.share'))
+                .fontSize(16)
+                .fontColor(['#007AFF'])
+            }
+            .padding({ left: 8, right: 8, top: 5, bottom: 5 })
+            .borderRadius(14)
+            .backgroundColor('#0A007AFF')
+            .margin({ left: 4 })
+            .onClick(() => { this.shareSummaryImage(); })
           }
 
-          Text('✕')
-            .fontSize(18)
-            .fontColor('#86868B')
+          Text('收起')
+            .fontSize(13)
             .fontWeight(FontWeight.Medium)
-            .margin({ left: 12 })
+            .fontColor('#86868B')
+            .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+            .borderRadius(14)
+            .backgroundColor('#0A8E8E93')
+            .margin({ left: 4 })
             .onClick(() => { this.showSummary = false; })
         }
         .width('100%')
@@ -1084,18 +1100,12 @@ ${ctx}`;
               Column({ space: 2 }) {
                 ForEach(this.parseSections(), (item: [string, string, string, string]) => {
                   Column() {
-                    // Section header
-                    Row({ space: 8 }) {
-                      Text(item[2])
-                        .fontSize(15)
-                      Text(item[0])
-                        .fontSize(15)
-                        .fontWeight(FontWeight.Bold)
-                        .fontColor(item[3])
-                    }
-                    .margin({ bottom: 6 })
+                    Text(item[0])
+                      .fontSize(15)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor(item[3])
+                      .margin({ bottom: 6 })
 
-                    // Section content
                     Text(item[1])
                       .fontSize(14)
                       .fontColor('#3C3C43')
@@ -1106,6 +1116,7 @@ ${ctx}`;
                   .padding(14)
                   .backgroundColor('#F8F9FA')
                   .borderRadius(10)
+                  .border({ width: { left: 3 }, color: item[3], style: BorderStyle.Solid })
                 })
 
                 // Fallback: raw text when sections can't be parsed
@@ -1543,110 +1554,111 @@ ${ctx}`;
   //  AI Summary Share Card — 分享 AI 解读为图片
   // ================================================================
   @Builder
-  SummaryShareOverlay() {
+  SummaryShareBackdrop() {
     Column() {
-      // Backdrop
-      Column() {
-        LoadingProgress().width(32).height(32).color('#FFFFFF')
-        Text('正在生成解读卡片...').fontSize(14).fontColor('#FFFFFF').margin({ top: 8 })
+      Column({ space: 12 }) {
+        LoadingProgress().width(36).height(36).color('#007AFF')
+        Text('正在生成解读卡片...').fontSize(15).fontWeight(FontWeight.Medium).fontColor('#1D1D1F')
       }
-      .width('100%').height('100%')
-      .justifyContent(FlexAlign.Center)
-      .alignItems(HorizontalAlign.Center)
-      .backgroundColor('#00000066')
-
-      // Offscreen card for snapshot
-      Column({ space: 0 }) {
-        // Top gradient
-        Row()
-          .width('100%').height(6)
-          .linearGradient({ direction: GradientDirection.Right, colors: [['#007AFF', 0], ['#5856D6', 0.5], ['#E84393', 1]] })
-
-        Column({ space: 12 }) {
-          // Header: branding + badge
-          Row() {
-            Row({ space: 4 }) {
-              Text('✦').fontSize(14).fontColor('#007AFF')
-              Text('arXplore AI 深度解读').fontSize(13).fontWeight(FontWeight.Bold).fontColor('#007AFF')
-            }
-            Blank()
-            Text(this.llmInited ? '端侧推理' : '云侧推理')
-              .fontSize(10).fontColor('#86868B')
-              .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-              .borderRadius(4).backgroundColor('#F2F2F7')
-          }
-          .width('100%')
-
-          // Paper title
-          Text(this.paper!.title)
-            .fontSize(15).fontWeight(FontWeight.Bold).fontColor('#1D1D1F')
-            .lineHeight(22).width('100%')
-            .maxLines(3).textOverflow({ overflow: TextOverflow.Ellipsis })
-
-          // Authors
-          Text(this.authors())
-            .fontSize(11).fontColor('#86868B')
-            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-            .width('100%')
-
-          Row().width('100%').height(1).backgroundColor('#F2F2F7')
-
-          // Sections
-          ForEach(this.parseSections(), (item: [string, string, string, string]) => {
-            Column() {
-              Row({ space: 6 }) {
-                Text(item[2]).fontSize(12)
-                Text(item[0]).fontSize(12).fontWeight(FontWeight.Bold).fontColor(item[3])
-              }
-              .margin({ bottom: 4 })
-
-              Text(item[1])
-                .fontSize(11).fontColor('#3C3C43')
-                .lineHeight(18).width('100%')
-            }
-            .width('100%')
-            .padding(10)
-            .backgroundColor('#F8F9FA')
-            .borderRadius(8)
-          })
-
-          // Fallback raw text
-          if (this.parseSections().length === 0 && this.summaryText.length > 0) {
-            Text(this.summaryText)
-              .fontSize(11).fontColor('#3C3C43')
-              .lineHeight(18).width('100%')
-          }
-
-          // Footer
-          Row().width('100%').height(1).backgroundColor('#F2F2F7').margin({ top: 4 })
-
-          Row() {
-            Column({ space: 2 }) {
-              Text(this.paperId()).fontSize(10).fontColor('#AEAEB2')
-              Text('来自 arXplore · AI 深度解读').fontSize(9).fontColor('#C7C7CC')
-            }
-            Blank()
-            Column() {
-              Text('aX').fontSize(18).fontWeight(FontWeight.Bold).fontColor('#FFFFFF')
-            }
-            .width(36).height(36).borderRadius(8)
-            .linearGradient({ direction: GradientDirection.Right, colors: [['#007AFF', 0], ['#5856D6', 1]] })
-            .justifyContent(FlexAlign.Center)
-          }
-          .width('100%')
-          .alignItems(VerticalAlign.Center)
-        }
-        .width('100%')
-        .padding({ left: 16, right: 16, top: 14, bottom: 14 })
-      }
-      .width(380)
-      .backgroundColor('#FFFFFF')
+      .padding(32)
       .borderRadius(16)
-      .shadow({ radius: 16, color: '#26000000', offsetX: 0, offsetY: 4 })
-      .position({ x: -9999 })
-      .id('summaryShareComp')
+      .backgroundColor('#FFFFFFEE')
+      .shadow({ radius: 20, color: '#26000000', offsetX: 0, offsetY: 4 })
     }
     .width('100%').height('100%')
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .backgroundColor('#00000066')
+  }
+
+  @Builder
+  SummaryShareCard() {
+    Column({ space: 0 }) {
+      // Top gradient
+      Row()
+        .width('100%').height(8)
+        .linearGradient({ direction: GradientDirection.Right, colors: [['#007AFF', 0], ['#5856D6', 0.5], ['#E84393', 1]] })
+
+      Column({ space: 16 }) {
+        // Header: branding + badge
+        Row() {
+          Row({ space: 6 }) {
+            Text('✦').fontSize(18).fontColor('#007AFF')
+            Text('arXplore AI 深度解读').fontSize(17).fontWeight(FontWeight.Bold).fontColor('#007AFF')
+          }
+          Blank()
+          Text(this.llmInited ? 'On-Device' : 'Qwen-7B')
+            .fontSize(13).fontColor('#86868B')
+            .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+            .borderRadius(6).backgroundColor('#F2F2F7')
+        }
+        .width('100%')
+
+        // Paper title
+        Text(this.paper!.title)
+          .fontSize(22).fontWeight(FontWeight.Bold).fontColor('#1D1D1F')
+          .lineHeight(32).width('100%')
+
+        // Authors
+        Text(this.authors())
+          .fontSize(14).fontColor('#86868B')
+          .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+
+        Row().width('100%').height(1).backgroundColor('#F2F2F7')
+
+        // Sections
+        ForEach(this.parseSections(), (item: [string, string, string, string]) => {
+          Column() {
+            Text(item[0])
+              .fontSize(16).fontWeight(FontWeight.Bold).fontColor(item[3])
+              .margin({ bottom: 6 })
+
+            Text(item[1])
+              .fontSize(15).fontColor('#3C3C43')
+              .lineHeight(24).width('100%')
+          }
+          .width('100%')
+          .padding(14)
+          .backgroundColor('#F8F9FA')
+          .borderRadius(10)
+          .border({ width: { left: 3 }, color: item[3], style: BorderStyle.Solid })
+        })
+
+        // Fallback raw text
+        if (this.parseSections().length === 0 && this.summaryText.length > 0) {
+          Text(this.summaryText)
+            .fontSize(15).fontColor('#3C3C43')
+            .lineHeight(24).width('100%')
+        }
+
+        // Footer
+        Row().width('100%').height(1).backgroundColor('#F2F2F7').margin({ top: 6 })
+
+        Row() {
+          Column({ space: 3 }) {
+            Text(this.paperId()).fontSize(13).fontColor('#AEAEB2')
+            Text('来自 arXplore · AI 深度解读').fontSize(12).fontColor('#C7C7CC')
+          }
+          Blank()
+          Column() {
+            Text('aX').fontSize(22).fontWeight(FontWeight.Bold).fontColor('#FFFFFF')
+          }
+          .width(44).height(44).borderRadius(10)
+          .linearGradient({ direction: GradientDirection.Right, colors: [['#007AFF', 0], ['#5856D6', 1]] })
+          .justifyContent(FlexAlign.Center)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Center)
+      }
+      .width('100%')
+      .padding({ left: 24, right: 24, top: 20, bottom: 20 })
+    }
+    .width(720)
+    .backgroundColor('#FFFFFF')
+    .borderRadius(20)
+    .shadow({ radius: 20, color: '#26000000', offsetX: 0, offsetY: 6 })
+    .id('summaryShareComp')
   }
 
   // ================================================================
